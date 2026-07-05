@@ -37,7 +37,16 @@ targets:
       # `resources:`) for Xcode's Core ML compiler build step to run at all;
       # under `resources:` it would just copy the raw, uncompiled model.
       # See Models/README.md for how to get one.
+      #
+      # excludes the docs/scripts sitting alongside the model: Xcode's
+      # bundle-copy step flattens directory structure, so Models/README.md
+      # and Models/convert/README.md would otherwise both land at
+      # ImageUpscaler.app/README.md and the archive fails with "Multiple
+      # commands produce ... README.md".
       - path: Models
+        excludes:
+          - "*.md"
+          - "convert/**"
     resources:
       - path: ImageUpscaler/Resources/Assets.xcassets
     settings:
