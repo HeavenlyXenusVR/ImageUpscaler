@@ -44,3 +44,100 @@ CREATE TABLE IF NOT EXISTS upscale_history (
     INDEX idx_technique (technique, created_at),
     INDEX idx_failures (success, created_at)
 );
+
+-- ---------------------------------------------------------------------------
+-- Temporary image storage (imports/exports) — expiring, not permanent
+-- ---------------------------------------------------------------------------
+
+-- A device's original (pre-upscale) photos, uploaded on request — NOT part
+-- of the normal on-device upscale flow (which never leaves the phone). This
+-- exists purely as an opt-in backup/handoff mechanism: e.g. queue a photo
+-- here before a batch job, or move a photo to another device without
+-- AirDrop. Rows are deleted automatically once `expires_at` passes (see
+-- main.py's cleanup loop) — this is temporary scratch storage, not a photo
+-- library.
+CREATE TABLE IF NOT EXISTS image_imports (
+    id VARCHAR(36) PRIMARY KEY,
+    device_id VARCHAR(64) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    filename VARCHAR(255),
+    content_type VARCHAR(100) DEFAULT 'image/jpeg',
+    width INT,
+    height INT,
+    file_size_bytes INT NOT NULL,
+    image_data LONGBLOB NOT NULL,
+    INDEX idx_device_imports (device_id, created_at),
+    INDEX idx_import_expiry (expires_at)
+);
+
+-- A device's upscaled results, uploaded on request — lets a result be
+-- re-fetched (e.g. after local storage was cleared, or from a second
+-- device) without re-running the model. Optionally linked back to the
+-- upscale_history row that produced it. Same auto-expiry as image_imports.
+CREATE TABLE IF NOT EXISTS image_exports (
+    id VARCHAR(36) PRIMARY KEY,
+    device_id VARCHAR(64) NOT NULL,
+    history_id VARCHAR(36),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    filename VARCHAR(255),
+    content_type VARCHAR(100) DEFAULT 'image/png',
+    width INT,
+    height INT,
+    file_size_bytes INT NOT NULL,
+    image_data LONGBLOB NOT NULL,
+    INDEX idx_device_exports (device_id, created_at),
+    INDEX idx_export_expiry (expires_at),
+    FOREIGN KEY (history_id) REFERENCES upscale_history(id) ON DELETE SET NULL
+);
+
+-- ---------------------------------------------------------------------------
+-- Customization
+-- ---------------------------------------------------------------------------
+
+-- User-named model+overlap combinations beyond the built-in Fast/Standard/
+-- Best presets — e.g. "Portrait" = anime model + overlap 12. Permanent
+-- (not expiring) — these are deliberate user configuration, not scratch data.
+CREATE TABLE IF NOT EXISTS custom_presets (
+    id VARCHAR(36) PRIMARY KEY,
+    device_id VARCHAR(64) NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    model_name VARCHAR(100) NOT NULL,
+    overlap INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY device_preset_name (device_id, name),
+    INDEX idx_device_presets (device_id)
+);
+
+-- Per-device settings backup. This app has no accounts, so "sync" here
+-- really means "manually-triggered backup/restore to/from one server
+-- record keyed by device_id" (see Settings' Backup/Restore actions),
+-- not automatic multi-device sync.
+CREATE TABLE IF NOT EXISTS device_settings (
+    device_id VARCHAR(64) PRIMARY KEY,
+    haptics_enabled BOOLEAN DEFAULT TRUE,
+    model_choice VARCHAR(50) DEFAULT 'generalPhoto',
+    quality VARCHAR(50) DEFAULT 'standard',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+-- Metadata about bundled models — richer, server-editable descriptions
+-- than hardcoding strings in the Swift client, and a natural place to add
+-- new model entries' documentation ahead of an app update that bundles
+-- them. `is_active` lets a model be listed without yet being recommended.
+CREATE TABLE IF NOT EXISTS model_registry (
+    model_name VARCHAR(100) PRIMARY KEY,
+    display_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    license VARCHAR(100),
+    tile_size INT NOT NULL,
+    scale_factor INT NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+INSERT INTO model_registry (model_name, display_name, description, license, tile_size, scale_factor, is_active) VALUES
+    ('RealESRGAN', 'General Photo', 'Real-ESRGAN x4plus — general-purpose photo upscaling, 23 RRDB blocks.', 'BSD-3-Clause', 128, 4, TRUE),
+    ('RealESRGANAnime', 'Anime / Illustration', 'Real-ESRGAN x4plus anime_6B — optimized for anime/illustration art, 6 RRDB blocks (faster).', 'BSD-3-Clause', 128, 4, TRUE)
+ON DUPLICATE KEY UPDATE display_name = VALUES(display_name);

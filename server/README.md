@@ -1,24 +1,66 @@
 # upscaler-bridge
 
-A small FastAPI service that logs every upscale attempt the app makes —
-source image size, technique used (Core ML model vs. Lanczos fallback),
-tile config, timing, success/failure — to a MariaDB table, mirroring
-Lumisound's `ios-bridge` pattern. Verified locally end-to-end against a
-throwaway MariaDB container (schema auto-applies on startup, `POST
-/log/upscale` + `GET /log/history` both round-tripped correctly) — **not
-yet deployed anywhere**.
+A small FastAPI service backing the app's optional server-side features —
+debug logging, temporary cloud storage for imports/exports, custom presets,
+device settings backup, and a model registry — mirroring Lumisound's
+`ios-bridge` pattern. **Live**: deployed at
+`https://upscaler-bridge.xenusanimations.studio` (see `docker-compose.yml`
+in the `music` compose project, `upscaler-bridge` service).
+
+Every endpoint here is verified end-to-end against a throwaway MariaDB
+container before being deployed — round-tripped requests, correct
+byte-exact image storage, TTL expiry actually firing, upsert correctness —
+not just "the code compiles."
 
 ## Endpoints
 
-- `GET /health`
-- `POST /log/upscale` — records one upscale attempt (see `UpscaleLogEntry`
-  in `main.py` for the full field list)
-- `GET /log/history?device_id=...&limit=&offset=` — recent entries,
-  optionally filtered to one device
+**Debug logging**
+- `POST /log/upscale` — records one upscale attempt (see `UpscaleLogEntry`)
+- `GET /log/history?device_id=...&limit=&offset=` — recent entries
 
-Auth: if `UPSCALER_BRIDGE_API_KEY` is set, all endpoints require
-`Authorization: Bearer <key>` — same pattern as `ios-bridge`. Unset (the
-default) means no auth, fine for a private/internal deployment.
+**Temporary image storage** (imports = pre-upscale, exports = post-upscale;
+both auto-expire — see "Expiry" below)
+- `POST /import` (multipart: `device_id`, `ttl_hours` optional, `file`)
+- `GET /import/{id}` — raw image bytes
+- `GET /import?device_id=...` — metadata list (no image bytes)
+- `DELETE /import/{id}`
+- `POST /export` (multipart: `device_id`, `history_id` optional, `ttl_hours`
+  optional, `file`) — `history_id` links back to the `upscale_history` row
+  that produced this result
+- `GET /export/{id}`, `GET /export?device_id=...`, `DELETE /export/{id}`
+
+**Custom presets** (named model+overlap combos, permanent — not TTL'd)
+- `POST /presets` — upsert by `(device_id, name)`, returns the stored `id`
+- `GET /presets?device_id=...`
+- `DELETE /presets/{id}`
+
+**Device settings backup/restore** (manually-triggered — no accounts, so
+this is a per-device_id backup slot, not automatic multi-device sync)
+- `PUT /device-settings` — upsert
+- `GET /device-settings?device_id=...` — 404 if never backed up
+
+**Model registry**
+- `GET /models` — metadata for available models (display name, description,
+  license, tile size, scale factor)
+
+`GET /health` needs no auth; everything else requires
+`Authorization: Bearer <key>` if `UPSCALER_BRIDGE_API_KEY` is set.
+
+## Expiry
+
+`image_imports`/`image_exports` rows carry an `expires_at`; a background
+loop (started in the FastAPI `lifespan`) deletes expired rows hourly, and
+every import/export write also triggers a best-effort opportunistic
+cleanup pass — so expiry doesn't solely depend on the hourly timer.
+`ttl_hours` defaults to 24, capped at 168 (7 days). This is scratch
+storage, not a photo library — nothing here is meant to be permanent.
+
+## Uploads
+
+Capped at 20MB per file (`MAX_UPLOAD_BYTES` in `main.py`) — comfortably
+under typical MariaDB `max_allowed_packet` defaults. Raise both together if
+larger uploads are ever needed. Image dimensions are read server-side via
+Pillow rather than trusted from client-supplied metadata.
 
 ## Running
 
@@ -33,6 +75,7 @@ which has none on purpose — set it explicitly):
 | `DB_PASSWORD` | *(none — required)* |
 | `DB_NAME` | `image_upscaler` |
 | `UPSCALER_BRIDGE_API_KEY` | *(none — auth disabled)* |
+| `PORT` | `8003` |
 
 ```bash
 pip install -r requirements.txt
@@ -45,9 +88,3 @@ Or via Docker:
 docker build -t upscaler-bridge .
 docker run -p 8003:8003 -e DB_HOST=... -e DB_PASSWORD=... upscaler-bridge
 ```
-
-## Deploying
-
-Not wired into any docker-compose file yet — this needs a real MariaDB to
-point at (either a new database on Lumisound's existing shared MariaDB
-instance, or its own), and that's a deployment decision, not a code one.
