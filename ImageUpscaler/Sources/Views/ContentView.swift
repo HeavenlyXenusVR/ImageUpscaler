@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var zoomedImage: UIImage?
     @State private var isBackingUp = false
     @State private var backupAlertMessage: String?
+    @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     var body: some View {
         NavigationStack {
@@ -125,6 +126,12 @@ struct ContentView: View {
                 if let zoomedImage {
                     ZoomableImageView(image: zoomedImage)
                 }
+            }
+            .fullScreenCover(isPresented: Binding(
+                get: { !hasSeenOnboarding },
+                set: { isPresented in if !isPresented { hasSeenOnboarding = true } }
+            )) {
+                OnboardingView { hasSeenOnboarding = true }
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
