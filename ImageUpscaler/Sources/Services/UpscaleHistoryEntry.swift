@@ -42,4 +42,20 @@ enum UpscaleHistoryService {
         let data = try await APIClient.data(for: request)
         return try JSONDecoder().decode(UpscaleHistoryResponse.self, from: data).entries
     }
+
+    static func delete(id: String) async throws {
+        let request = try APIClient.request(path: "log/history/\(id)", method: "DELETE")
+        _ = try await APIClient.data(for: request)
+    }
+
+    /// Deletes every history row for this device — used by History's
+    /// "Clear All". Note this only clears the *paginated view*'s backing
+    /// data; it has no effect on `/log/stats`' own lifetime totals beyond
+    /// what it deletes (stats simply recount whatever remains).
+    static func deleteAllOwn() async throws {
+        let request = try APIClient.request(path: "log/history", method: "DELETE", queryItems: [
+            URLQueryItem(name: "device_id", value: DeviceIdentity.current),
+        ])
+        _ = try await APIClient.data(for: request)
+    }
 }
