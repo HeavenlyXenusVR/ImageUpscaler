@@ -57,7 +57,11 @@ enum UpscaleHistoryService {
         ]
         guard let url = components?.url else { throw FetchError.noServerConfigured }
 
-        let (data, response) = try await URLSession.shared.data(from: url)
+        var request = URLRequest(url: url)
+        if let apiKey = ServerConfig.apiKey {
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await URLSession.shared.data(for: request)
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
             throw FetchError.badStatus(http.statusCode)
         }

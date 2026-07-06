@@ -56,6 +56,13 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
+        # Empty by default — local/dev builds get no key, and ServerConfig.apiKey
+        # falls back to nil (no Authorization header sent, matching a server
+        # with no API key configured). CI overrides this on the xcodebuild
+        # command line from the UPSCALER_BRIDGE_API_KEY repo secret so
+        # CI-built IPAs have it baked in; the raw value never touches a file
+        # in this repo.
+        UPSCALER_BRIDGE_API_KEY: ""
     scheme:
       buildAction:
         targets:

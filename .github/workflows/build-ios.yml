@@ -45,6 +45,12 @@ jobs:
           echo "configuration=$CONFIG" >> "$GITHUB_OUTPUT"
 
       - name: Archive (unsigned)
+        env:
+          # Injected as a build setting (-> Info.plist's UpscalerBridgeAPIKey
+          # via $(UPSCALER_BRIDGE_API_KEY) substitution, see project.yml) —
+          # never written to a file in the repo, only passed on this
+          # command line from the encrypted repo secret.
+          UPSCALER_BRIDGE_API_KEY: ${{ secrets.UPSCALER_BRIDGE_API_KEY }}
         run: |
           mkdir -p build
           xcodebuild archive \
@@ -56,7 +62,8 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            SKIP_INSTALL=NO 2>&1 | tee /tmp/xcodebuild.log | tail -20
+            SKIP_INSTALL=NO \
+            "UPSCALER_BRIDGE_API_KEY=$UPSCALER_BRIDGE_API_KEY" 2>&1 | tee /tmp/xcodebuild.log | tail -20
           if grep -q "error:" /tmp/xcodebuild.log; then
             echo "--- Compiler errors ---"
             grep "error:" /tmp/xcodebuild.log | head -30

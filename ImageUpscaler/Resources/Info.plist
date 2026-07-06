@@ -26,6 +26,8 @@
 	<string>Upscaler needs access to your photos so you can pick an image to upscale.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Upscaler saves the upscaled image back to your photo library.</string>
+	<key>UpscalerBridgeAPIKey</key>
+	<string>$(UPSCALER_BRIDGE_API_KEY)</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UIRequiredDeviceCapabilities</key>

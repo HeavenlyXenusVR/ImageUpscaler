@@ -12,6 +12,9 @@ enum UpscaleLoggingService {
                 var request = URLRequest(url: baseURL.appendingPathComponent("log/upscale"))
                 request.httpMethod = "POST"
                 request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                if let apiKey = ServerConfig.apiKey {
+                    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                }
                 request.httpBody = try JSONEncoder().encode(entry)
                 let (_, response) = try await URLSession.shared.data(for: request)
                 if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {

@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct SettingsView: View {
-    @AppStorage(ServerConfig.baseURLDefaultsKey) private var serverURLString: String = ""
+    @AppStorage(ServerConfig.baseURLDefaultsKey) private var serverURLString: String = ServerConfig.defaultBaseURLString
+    @AppStorage(ServerConfig.apiKeyDefaultsKey) private var apiKeyString: String = ""
 
     var body: some View {
         Form {
@@ -10,10 +11,13 @@ struct SettingsView: View {
                     .keyboardType(.URL)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                SecureField("API key (optional)", text: $apiKeyString)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
             } header: {
                 Text("Upscaler-Bridge Server")
             } footer: {
-                Text("Optional. If set, every upscale (success or failure) is logged here — source image size, technique/model used, tile config, timing. Leave empty to disable logging entirely. See server/README.md in the repo for how to deploy one.")
+                Text("Optional. If set, every upscale (success or failure) is logged here — source image size, technique/model used, tile config, timing. Leave the URL empty to disable logging entirely. Release builds from CI have a key baked in automatically; leave the API key field blank to use that default, or set one here to override it. See server/README.md in the repo for how to deploy one.")
             }
 
             Section {
