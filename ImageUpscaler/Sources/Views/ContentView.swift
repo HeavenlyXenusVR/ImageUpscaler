@@ -127,6 +127,13 @@ struct ContentView: View {
                 }
             }
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    NavigationLink {
+                        BatchUpscaleView(provider: provider)
+                    } label: {
+                        Image(systemName: "photo.stack")
+                    }
+                }
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     NavigationLink {
                         CloudView()

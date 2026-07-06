@@ -131,11 +131,22 @@ final class CoreMLTileUpscaler: ImageUpscaling {
             // Swift Concurrency cooperative-pool thread happens to be
             // running this continuation's closure body.
             DispatchQueue.global(qos: .userInitiated).async {
-                let handler = VNImageRequestHandler(cgImage: cgTile, options: [:])
-                do {
-                    try handler.perform([request])
-                } catch {
-                    continuation.resume(throwing: error)
+                // perform() runs its completion handler (above — the
+                // CIImage/CGImage conversion) synchronously within this same
+                // call, so one autoreleasepool here covers both. Background
+                // dispatch queue threads don't get an implicit per-iteration
+                // drain the way the main run loop does, and a full-size
+                // image can mean 30-50+ tiles through this exact path —
+                // enough intermediate CGImage/CIImage/UIImage churn per
+                // batch item that it matters, especially queued across a
+                // multi-photo batch.
+                autoreleasepool {
+                    let handler = VNImageRequestHandler(cgImage: cgTile, options: [:])
+                    do {
+                        try handler.perform([request])
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
                 }
             }
         }
