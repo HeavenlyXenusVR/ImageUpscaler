@@ -198,6 +198,68 @@ async def get_history(
     return {"entries": rows}
 
 
+@app.delete("/log/history/{entry_id}")
+async def delete_history_entry(entry_id: str, request: Request):
+    await check_auth(request)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("DELETE FROM upscale_history WHERE id = %s", (entry_id,))
+            deleted = cur.rowcount
+    if not deleted:
+        raise HTTPException(status_code=404, detail="History entry not found")
+    return {"deleted": True}
+
+
+@app.delete("/log/history")
+async def clear_history(request: Request, device_id: str = Query(...)):
+    await check_auth(request)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute("DELETE FROM upscale_history WHERE device_id = %s", (device_id,))
+            deleted = cur.rowcount
+    return {"deleted_count": deleted}
+
+
+@app.get("/log/stats")
+async def get_stats(request: Request, device_id: str = Query(...)):
+    """Aggregates over the FULL history for this device, not the capped/
+    paginated /log/history — that endpoint's own limit<=200 would silently
+    undercount "total upscales" once a device crosses 200 lifetime
+    attempts, which is a very plausible count over an app's lifetime."""
+    await check_auth(request)
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total,
+                    SUM(success) AS successes,
+                    AVG(processing_ms) AS avg_processing_ms,
+                    SUM(CASE WHEN success THEN output_width * output_height ELSE 0 END) AS total_output_pixels
+                FROM upscale_history WHERE device_id = %s
+                """,
+                (device_id,),
+            )
+            row = await cur.fetchone()
+    # SUM()/AVG() over MariaDB come back as Decimal via aiomysql's type
+    # conversion, not plain int/float — normalize explicitly so the JSON
+    # response (and the Swift client decoding it) gets predictable
+    # int/float types rather than a Decimal-derived string.
+    total = int(row["total"] or 0)
+    successes = int(row["successes"] or 0)
+    return {
+        "total": total,
+        "successes": successes,
+        "failures": total - successes,
+        "success_rate": (successes / total) if total else None,
+        "avg_processing_ms": float(row["avg_processing_ms"]) if row["avg_processing_ms"] is not None else None,
+        "total_output_pixels": int(row["total_output_pixels"] or 0),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Temporary image storage: imports (pre-upscale) and exports (post-upscale)
 # ---------------------------------------------------------------------------
