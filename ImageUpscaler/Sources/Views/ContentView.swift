@@ -163,7 +163,15 @@ struct ContentView: View {
 
     @ViewBuilder
     private var imagePreview: some View {
-        if let resultImage = viewModel.resultImage {
+        if let sourceImage = viewModel.sourceImage, let resultImage = viewModel.resultImage {
+            VStack(spacing: 6) {
+                CompareSliderView(before: sourceImage, after: resultImage)
+                    .frame(height: 320)
+                Text("Before/After · drag to compare · \(Int(resultImage.size.width))×\(Int(resultImage.size.height))")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } else if let resultImage = viewModel.resultImage {
             labeledImage("After", image: resultImage)
         } else if let sourceImage = viewModel.sourceImage {
             labeledImage("Before", image: sourceImage)
