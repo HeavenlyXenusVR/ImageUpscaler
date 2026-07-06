@@ -1,13 +1,17 @@
 # Third-party notices
 
-## Real-ESRGAN (RealESRGAN.mlpackage)
+## Real-ESRGAN (RealESRGAN.mlpackage, RealESRGANAnime.mlpackage)
 
-`RealESRGAN.mlpackage` is a Core ML conversion of the `RealESRGAN_x4plus`
-model from [xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)
-(architecture defined in
-[xinntao/BasicSR](https://github.com/xinntao/BasicSR)). Converted with
-[`convert.py`](convert/convert.py) — see that folder to reproduce or adapt
-the conversion.
+Both bundled models are Core ML conversions of checkpoints from
+[xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) (architecture
+defined in [xinntao/BasicSR](https://github.com/xinntao/BasicSR)):
+
+- `RealESRGAN.mlpackage` ← `RealESRGAN_x4plus.pth` (general photo, 23 blocks)
+- `RealESRGANAnime.mlpackage` ← `RealESRGAN_x4plus_anime_6B.pth`
+  (anime/illustration, 6 blocks)
+
+Both converted with [`convert.py`](convert/convert.py) — see that folder to
+reproduce or adapt either conversion.
 
 ```
 BSD 3-Clause License

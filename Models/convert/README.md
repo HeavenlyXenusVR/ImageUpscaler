@@ -1,18 +1,26 @@
 # Converting Real-ESRGAN to Core ML
 
-Reproduces `../RealESRGAN.mlpackage`. Requires Python 3.11 (coremltools
-9.0 at time of writing doesn't yet support 3.13) and works on Linux or
-macOS — only the final `.mlpackage` → `.mlmodelc` compile step needs Xcode.
+Reproduces `../RealESRGAN.mlpackage` and `../RealESRGANAnime.mlpackage`.
+Requires Python 3.11 (coremltools 9.0 at time of writing doesn't yet
+support 3.13) and works on Linux or macOS — only the final `.mlpackage` →
+`.mlmodelc` compile step needs Xcode.
 
 ```bash
 python3.11 -m venv venv
 source venv/bin/activate
 pip install coremltools torch --index-url https://download.pytorch.org/whl/cpu
 
-# Weights from the official release (BSD-3-Clause, see ../THIRD_PARTY_NOTICES.md)
+# Weights from the official releases (BSD-3-Clause, see ../THIRD_PARTY_NOTICES.md)
 curl -sL https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth -o RealESRGAN_x4plus.pth
+curl -sL https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth -o RealESRGAN_x4plus_anime_6B.pth
 
-python3 convert.py   # writes RealESRGAN.mlpackage in the current directory
+# General photo model (23 RRDB blocks — the default args)
+python3 convert.py --weights RealESRGAN_x4plus.pth --num-block 23 \
+    --out RealESRGAN.mlpackage --description "Real-ESRGAN x4plus"
+
+# Anime/illustration model (6 blocks — smaller & faster)
+python3 convert.py --weights RealESRGAN_x4plus_anime_6B.pth --num-block 6 \
+    --out RealESRGANAnime.mlpackage --description "Real-ESRGAN x4plus anime_6B"
 ```
 
 `rrdbnet.py` is the RRDBNet architecture (the model `x4plus` actually is)

@@ -1,3 +1,5 @@
+import argparse
+
 import coremltools as ct
 import torch
 import torch.nn as nn
@@ -30,8 +32,15 @@ class Wrapped(nn.Module):
 
 
 def main():
-    base = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=23, num_grow_ch=32)
-    state = torch.load("RealESRGAN_x4plus.pth", map_location="cpu", weights_only=True)
+    parser = argparse.ArgumentParser(description="Convert a Real-ESRGAN RRDBNet checkpoint to Core ML.")
+    parser.add_argument("--weights", default="RealESRGAN_x4plus.pth", help="Path to the .pth checkpoint")
+    parser.add_argument("--num-block", type=int, default=23, help="RRDBNet num_block (23 for x4plus, 6 for anime_6B)")
+    parser.add_argument("--out", default="RealESRGAN.mlpackage", help="Output .mlpackage path")
+    parser.add_argument("--description", default="Real-ESRGAN x4plus", help="Short description baked into the model")
+    args = parser.parse_args()
+
+    base = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=args.num_block, num_grow_ch=32)
+    state = torch.load(args.weights, map_location="cpu", weights_only=True)
     base.load_state_dict(state["params_ema"])
     base.eval()
 
@@ -50,11 +59,11 @@ def main():
         minimum_deployment_target=ct.target.iOS16,
     )
     mlmodel.short_description = (
-        "Real-ESRGAN x4plus (BSD-3-Clause, github.com/xinntao/Real-ESRGAN) — "
+        f"{args.description} (BSD-3-Clause, github.com/xinntao/Real-ESRGAN) — "
         f"fixed {TILE_SIZE}x{TILE_SIZE} input, 4x output, for tiled use via ImageTiler."
     )
-    mlmodel.save("RealESRGAN.mlpackage")
-    print("Saved RealESRGAN.mlpackage")
+    mlmodel.save(args.out)
+    print(f"Saved {args.out}")
 
 
 if __name__ == "__main__":
