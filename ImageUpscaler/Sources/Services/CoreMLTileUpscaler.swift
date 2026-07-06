@@ -21,8 +21,18 @@ final class CoreMLTileUpscaler: ImageUpscaling {
     }
 
     private let visionModel: VNCoreMLModel
-    private let config: Config
-    let techniqueInfo: UpscaleTechniqueInfo
+    private let modelName: String
+    /// Mutable (not just at init) so `UpscalerProvider` can adjust overlap
+    /// for a quality-preset change without re-loading the underlying
+    /// `MLModel` — that load is the expensive part (real I/O + mmap), not
+    /// this struct.
+    private(set) var config: Config
+    var techniqueInfo: UpscaleTechniqueInfo {
+        UpscaleTechniqueInfo(
+            technique: "coreml_tile", modelName: modelName,
+            tileSize: config.tileSize, overlap: config.overlap, scaleFactor: config.scaleFactor
+        )
+    }
     // workingColorSpace: NSNull() disables Core Image's color management for
     // this context. The model was trained on plain 0-255 RGB byte arrays
     // with no notion of a color profile — with color management left on,
@@ -49,11 +59,14 @@ final class CoreMLTileUpscaler: ImageUpscaling {
         }
         let mlModel = try MLModel(contentsOf: url)
         self.visionModel = try VNCoreMLModel(for: mlModel)
+        self.modelName = modelName
         self.config = config
-        self.techniqueInfo = UpscaleTechniqueInfo(
-            technique: "coreml_tile", modelName: modelName,
-            tileSize: config.tileSize, overlap: config.overlap, scaleFactor: config.scaleFactor
-        )
+    }
+
+    /// Adjusts context-tile overlap (e.g. for a quality-preset change)
+    /// without reconstructing this instance or reloading the model.
+    func updateOverlap(_ overlap: Int) {
+        config.overlap = overlap
     }
 
     func upscale(_ image: UIImage, progress: @escaping (Double) -> Void) async throws -> UpscaleResult {

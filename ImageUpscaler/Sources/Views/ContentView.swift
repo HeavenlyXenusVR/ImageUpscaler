@@ -2,14 +2,15 @@ import PhotosUI
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var viewModel = UpscalerViewModel()
+    @EnvironmentObject private var viewModel: UpscalerViewModel
+    @EnvironmentObject private var provider: UpscalerProvider
     @State private var pickerItem: PhotosPickerItem?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-                    if !viewModel.isUsingMLModel {
+                    if !provider.modelChoice.isBundled {
                         modelMissingBanner
                     }
 
@@ -134,5 +135,8 @@ struct ContentView: View {
 }
 
 #Preview {
+    let provider = UpscalerProvider()
     ContentView()
+        .environmentObject(provider)
+        .environmentObject(UpscalerViewModel(provider: provider))
 }
