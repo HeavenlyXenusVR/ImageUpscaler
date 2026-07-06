@@ -5,6 +5,7 @@ struct ContentView: View {
     @EnvironmentObject private var viewModel: UpscalerViewModel
     @EnvironmentObject private var provider: UpscalerProvider
     @State private var pickerItem: PhotosPickerItem?
+    @State private var zoomedImage: UIImage?
 
     var body: some View {
         NavigationStack {
@@ -21,9 +22,11 @@ struct ContentView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)
+                    .simultaneousGesture(TapGesture().onEnded { Haptics.lightImpact() })
 
                     if viewModel.sourceImage != nil {
                         Button {
+                            Haptics.lightImpact()
                             viewModel.upscale()
                         } label: {
                             Label("Upscale", systemImage: "wand.and.stars")
@@ -41,7 +44,7 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                     }
 
-                    if viewModel.resultImage != nil {
+                    if let resultImage = viewModel.resultImage {
                         Button {
                             viewModel.saveResultToPhotos()
                         } label: {
@@ -49,6 +52,26 @@ struct ContentView: View {
                                 .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
+
+                        HStack(spacing: 12) {
+                            ShareLink(
+                                item: Image(uiImage: resultImage),
+                                preview: SharePreview("Upscaled Photo", image: Image(uiImage: resultImage))
+                            ) {
+                                Label("Share", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+
+                            Button {
+                                UIPasteboard.general.image = resultImage
+                                Haptics.lightImpact()
+                            } label: {
+                                Label("Copy", systemImage: "doc.on.doc")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
 
                     if let errorMessage = viewModel.errorMessage {
@@ -69,6 +92,14 @@ struct ContentView: View {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("The upscaled image was added to your Photos library.")
+            }
+            .fullScreenCover(isPresented: Binding(
+                get: { zoomedImage != nil },
+                set: { isPresented in if !isPresented { zoomedImage = nil } }
+            )) {
+                if let zoomedImage {
+                    ZoomableImageView(image: zoomedImage)
+                }
             }
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
@@ -118,6 +149,7 @@ struct ContentView: View {
                 .scaledToFit()
                 .frame(maxHeight: 320)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .onTapGesture { zoomedImage = image }
             Text("\(label) · \(Int(image.size.width))×\(Int(image.size.height))")
                 .font(.caption)
                 .foregroundStyle(.secondary)

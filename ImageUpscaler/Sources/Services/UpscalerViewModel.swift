@@ -61,8 +61,10 @@ final class UpscalerViewModel: ObservableObject {
             }
             if let result = outcome.result {
                 self.resultImage = result.image
+                Haptics.success()
             } else if let error = outcome.error {
                 self.errorMessage = error.localizedDescription
+                Haptics.error()
             }
             self.isUpscaling = false
         }
@@ -77,8 +79,10 @@ final class UpscalerViewModel: ObservableObject {
                     PHAssetChangeRequest.creationRequestForAsset(from: resultImage)
                 }
                 savedConfirmation = true
+                Haptics.success()
             } catch {
                 errorMessage = error.localizedDescription
+                Haptics.error()
             }
         }
     }
