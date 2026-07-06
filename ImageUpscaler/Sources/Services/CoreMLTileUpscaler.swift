@@ -23,7 +23,20 @@ final class CoreMLTileUpscaler: ImageUpscaling {
     private let visionModel: VNCoreMLModel
     private let config: Config
     let techniqueInfo: UpscaleTechniqueInfo
-    private static let ciContext = CIContext()
+    // workingColorSpace: NSNull() disables Core Image's color management for
+    // this context. The model was trained on plain 0-255 RGB byte arrays
+    // with no notion of a color profile — with color management left on,
+    // Core Image re-tags/gamma-corrects the model's raw output pixel buffer
+    // against a working color space when converting it back to a CGImage,
+    // which shows up as a washed-out/lower-contrast haze over otherwise
+    // genuinely-sharper detail (this exact symptom, reported after the
+    // first real on-device test). Disabling it makes pixel values pass
+    // through numerically unchanged, matching what the model actually
+    // produced.
+    private static let ciContext = CIContext(options: [
+        .workingColorSpace: NSNull(),
+        .outputColorSpace: NSNull(),
+    ])
 
     /// - Parameter modelName: the compiled model's filename without
     ///   extension, as it appears in the app bundle (i.e. what a
