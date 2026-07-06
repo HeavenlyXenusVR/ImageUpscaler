@@ -15,6 +15,17 @@ DB_CONFIG = {
     "db": os.getenv("DB_NAME", "image_upscaler"),
     "charset": "utf8mb4",
     "autocommit": True,
+    # The server's session time_zone defaults to 'SYSTEM' (the host's local
+    # timezone, e.g. CDT on the actual deploy host — confirmed via `SELECT
+    # @@system_time_zone`), NOT UTC. Every TIMESTAMP column (created_at,
+    # expires_at, etc.) would otherwise be written/read in local wall-clock
+    # time with no offset info in the JSON response, which is exactly wrong
+    # for anything a client needs to compare against "now" (e.g. the
+    # image_imports/image_exports expiry countdown). Pin every pooled
+    # connection to UTC at the session level so all TIMESTAMP reads/writes
+    # are consistently UTC regardless of host timezone — the API can then
+    # honestly treat every timestamp string it returns as UTC.
+    "init_command": "SET time_zone = '+00:00'",
 }
 
 _pool: aiomysql.Pool | None = None

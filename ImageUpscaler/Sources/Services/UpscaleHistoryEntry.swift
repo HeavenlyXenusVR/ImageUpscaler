@@ -31,40 +31,15 @@ private struct UpscaleHistoryResponse: Decodable {
 }
 
 enum UpscaleHistoryService {
-    enum FetchError: LocalizedError {
-        case noServerConfigured
-        case badStatus(Int)
-
-        var errorDescription: String? {
-            switch self {
-            case .noServerConfigured:
-                return "No server configured — set one in Settings first."
-            case .badStatus(let code):
-                return "Server returned status \(code)."
-            }
-        }
-    }
-
     /// Fetches this device's own history only — there's no auth/accounts
     /// here, so scoping to `DeviceIdentity.current` is the only thing
     /// standing between one install and every other install's rows.
     static func fetchOwnHistory(limit: Int = 50) async throws -> [UpscaleHistoryEntry] {
-        guard let baseURL = ServerConfig.baseURL else { throw FetchError.noServerConfigured }
-        var components = URLComponents(url: baseURL.appendingPathComponent("log/history"), resolvingAgainstBaseURL: false)
-        components?.queryItems = [
+        let request = try APIClient.request(path: "log/history", queryItems: [
             URLQueryItem(name: "device_id", value: DeviceIdentity.current),
             URLQueryItem(name: "limit", value: String(limit)),
-        ]
-        guard let url = components?.url else { throw FetchError.noServerConfigured }
-
-        var request = URLRequest(url: url)
-        if let apiKey = ServerConfig.apiKey {
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        }
-        let (data, response) = try await URLSession.shared.data(for: request)
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            throw FetchError.badStatus(http.statusCode)
-        }
+        ])
+        let data = try await APIClient.data(for: request)
         return try JSONDecoder().decode(UpscaleHistoryResponse.self, from: data).entries
     }
 }
