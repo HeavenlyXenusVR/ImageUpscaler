@@ -1,17 +1,23 @@
 # Third-party notices
 
-## Real-ESRGAN (RealESRGAN.mlpackage, RealESRGANAnime.mlpackage)
+## Real-ESRGAN (RealESRGAN.mlpackage, RealESRGANAnime.mlpackage, RealESRNet.mlpackage, RealESRGeneralV3.mlpackage)
 
-Both bundled models are Core ML conversions of checkpoints from
-[xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) (architecture
-defined in [xinntao/BasicSR](https://github.com/xinntao/BasicSR)):
+All four bundled models are Core ML conversions of checkpoints from
+[xinntao/Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) (architectures
+defined in [xinntao/BasicSR](https://github.com/xinntao/BasicSR) and in
+Real-ESRGAN's own `realesrgan/archs/`):
 
-- `RealESRGAN.mlpackage` ← `RealESRGAN_x4plus.pth` (general photo, 23 blocks)
+- `RealESRGAN.mlpackage` ← `RealESRGAN_x4plus.pth` (general photo, RRDBNet 23 blocks)
 - `RealESRGANAnime.mlpackage` ← `RealESRGAN_x4plus_anime_6B.pth`
-  (anime/illustration, 6 blocks)
+  (anime/illustration, RRDBNet 6 blocks)
+- `RealESRNet.mlpackage` ← `RealESRNet_x4plus.pth` (portrait, RRDBNet 23
+  blocks — same architecture/data as x4plus, trained without a GAN loss)
+- `RealESRGeneralV3.mlpackage` ← `realesr-general-x4v3.pth` (fast & clean
+  everyday default, SRVGGNetCompact 32 conv layers — a different, smaller
+  architecture from the other three)
 
-Both converted with [`convert.py`](convert/convert.py) — see that folder to
-reproduce or adapt either conversion.
+All four converted with [`convert.py`](convert/convert.py) — see that
+folder to reproduce or adapt any of them.
 
 ```
 BSD 3-Clause License

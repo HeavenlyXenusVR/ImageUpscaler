@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 
 from rrdbnet import RRDBNet
+from srvgg_arch import SRVGGNetCompact
 
 TILE_SIZE = 128  # must match PixelBoost's CoreMLTileUpscaler.Config.tileSize
 
@@ -32,16 +33,28 @@ class Wrapped(nn.Module):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Convert a Real-ESRGAN RRDBNet checkpoint to Core ML.")
+    parser = argparse.ArgumentParser(description="Convert a Real-ESRGAN checkpoint (RRDBNet or SRVGGNetCompact) to Core ML.")
     parser.add_argument("--weights", default="RealESRGAN_x4plus.pth", help="Path to the .pth checkpoint")
-    parser.add_argument("--num-block", type=int, default=23, help="RRDBNet num_block (23 for x4plus, 6 for anime_6B)")
+    parser.add_argument(
+        "--arch", default="rrdbnet", choices=["rrdbnet", "srvgg"],
+        help="rrdbnet (x4plus/anime_6B/RealESRNet_x4plus) or srvgg (realesr-general-x4v3 and friends)"
+    )
+    parser.add_argument("--num-block", type=int, default=23, help="RRDBNet num_block (23 for x4plus/RealESRNet, 6 for anime_6B)")
+    parser.add_argument("--num-conv", type=int, default=32, help="SRVGGNetCompact num_conv (32 for general-x4v3, 16 for animevideov3)")
     parser.add_argument("--out", default="RealESRGAN.mlpackage", help="Output .mlpackage path")
     parser.add_argument("--description", default="Real-ESRGAN x4plus", help="Short description baked into the model")
     args = parser.parse_args()
 
-    base = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=args.num_block, num_grow_ch=32)
+    if args.arch == "rrdbnet":
+        base = RRDBNet(num_in_ch=3, num_out_ch=3, num_feat=64, num_block=args.num_block, num_grow_ch=32)
+    else:
+        base = SRVGGNetCompact(num_in_ch=3, num_out_ch=3, num_feat=64, num_conv=args.num_conv, upscale=4, act_type="prelu")
+
     state = torch.load(args.weights, map_location="cpu", weights_only=True)
-    base.load_state_dict(state["params_ema"])
+    # RRDBNet checkpoints store the EMA'd weights under "params_ema";
+    # SRVGGNetCompact checkpoints (no EMA) store them under "params".
+    key = "params_ema" if "params_ema" in state else "params"
+    base.load_state_dict(state[key])
     base.eval()
 
     wrapped = Wrapped(base)

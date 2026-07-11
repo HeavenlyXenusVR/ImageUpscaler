@@ -5,11 +5,11 @@ import UIKit
 /// Which bundled Core ML model to use. Each case's `modelName` must match a
 /// compiled model in Models/ (see Models/README.md) — resolving a choice
 /// whose model isn't actually bundled falls back to `LanczosUpscaler`
-/// rather than throwing, same as the original single-model behavior. Cases
-/// beyond `generalPhoto`/`anime` aren't bundled yet (no matching
-/// `.mlmodelc`) — they exist so the picker honestly shows where the model
-/// lineup is headed, degrading the same "not bundled" way any missing model
-/// already does rather than hiding the option entirely.
+/// rather than throwing, same as the original single-model behavior.
+/// `.textDocument` isn't bundled yet (no matching `.mlmodelc`) — it exists
+/// so the picker honestly shows where the model lineup is headed,
+/// degrading the same "not bundled" way any missing model already does
+/// rather than hiding the option entirely.
 enum UpscaleModelChoice: String, CaseIterable, Identifiable {
     case auto
     case generalPhoto
@@ -26,7 +26,7 @@ enum UpscaleModelChoice: String, CaseIterable, Identifiable {
         case .generalPhoto: return "General Photo"
         case .anime: return "Anime / Illustration"
         case .portrait: return "Portrait"
-        case .lowLight: return "Low-Light"
+        case .lowLight: return "Fast & Clean"
         case .textDocument: return "Text & Documents"
         }
     }
@@ -36,8 +36,17 @@ enum UpscaleModelChoice: String, CaseIterable, Identifiable {
         case .auto: return ""
         case .generalPhoto: return "RealESRGAN"
         case .anime: return "RealESRGANAnime"
-        case .portrait: return "RealESRGANPortrait"
-        case .lowLight: return "RealESRGANLowLight"
+        // RealESRNet_x4plus: same RRDBNet architecture and training data as
+        // RealESRGAN, but trained with only L1 loss (no GAN) — noticeably
+        // smoother, less prone to the over-sharpened/ringing artifacts GAN
+        // training can put on skin and other soft gradients, which is why
+        // it's the Portrait pick rather than the general-purpose one.
+        case .portrait: return "RealESRNet"
+        // realesr-general-x4v3: a much smaller/faster SRVGGNetCompact
+        // architecture (32 conv layers vs RRDBNet's 23 dense residual
+        // blocks) built for everyday real-world photos — quicker per tile
+        // with a cleaner, lower-artifact result than the heavier models.
+        case .lowLight: return "RealESRGeneralV3"
         case .textDocument: return "RealESRGANText"
         }
     }

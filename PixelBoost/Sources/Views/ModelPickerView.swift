@@ -125,7 +125,7 @@ private struct ModelCard: View {
         case .generalPhoto: return "photo"
         case .anime: return "paintpalette"
         case .portrait: return "person.crop.square"
-        case .lowLight: return "moon.stars"
+        case .lowLight: return "hare"
         case .textDocument: return "doc.text"
         }
     }
@@ -135,8 +135,8 @@ private struct ModelCard: View {
         case .auto: return "Tests your photo, keeps the sharper result"
         case .generalPhoto: return "Real-ESRGAN x4plus"
         case .anime: return "Real-ESRGAN anime_6B"
-        case .portrait: return "Faces & skin detail"
-        case .lowLight: return "Noise-aware denoising"
+        case .portrait: return "RealESRNet_x4plus — smoother, fewer artifacts on skin"
+        case .lowLight: return "realesr-general-x4v3 — smaller & quicker everyday default"
         case .textDocument: return "Crisp edges on type"
         }
     }

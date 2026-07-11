@@ -1,32 +1,41 @@
 # Models
 
-Two Core ML models are bundled, picked automatically via `UpscalerProvider`'s
-model picker (Settings, or the app-level environment) — both
-[Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN) conversions,
+Four Core ML models are bundled, picked automatically via `UpscalerProvider`
+(Auto mode) or manually in the model picker — all
+[Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)-family conversions,
 BSD-3-Clause. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the
-license text and [`convert/`](convert/) for the (now parameterized, one
-script covers both) conversion pipeline.
+license text and [`convert/`](convert/) for the conversion pipeline (one
+script, two supported architectures).
 
-| File | Source | RRDB blocks | Best for |
+| File | Source | Architecture | Best for |
 |---|---|---|---|
-| `RealESRGAN.mlpackage` | `RealESRGAN_x4plus.pth` | 23 | General photos (default) |
-| `RealESRGANAnime.mlpackage` | `RealESRGAN_x4plus_anime_6B.pth` | 6 (smaller/faster) | Anime/illustration art |
+| `RealESRGAN.mlpackage` | `RealESRGAN_x4plus.pth` | RRDBNet, 23 blocks | General photos (default) |
+| `RealESRGANAnime.mlpackage` | `RealESRGAN_x4plus_anime_6B.pth` | RRDBNet, 6 blocks (smaller/faster) | Anime/illustration art |
+| `RealESRNet.mlpackage` | `RealESRNet_x4plus.pth` | RRDBNet, 23 blocks | Portraits — same architecture/data as x4plus but trained with only L1 loss (no GAN), so it's smoother and less prone to over-sharpened/ringing artifacts on skin |
+| `RealESRGeneralV3.mlpackage` | `realesr-general-x4v3.pth` | SRVGGNetCompact, 32 conv layers | Everyday quick default — much smaller/faster than any RRDBNet model, cleaner result on typical real-world photos |
 
-**Not verified end-to-end.** Both conversions (`torch.jit.trace` →
+`Auto` (see `UpscalerProvider.autoSelectModel`) tests every bundled model
+above against a crop of the photo and keeps whichever scores sharper,
+rather than picking one of these by fixed default.
+
+**Not verified end-to-end.** All four conversions (`torch.jit.trace` →
 `coremltools.convert`) produce a `.mlpackage` with the right input/output
 shapes, and the underlying PyTorch model + weights were checked separately
-for each (ran the un-converted model on a real photo, got a plausible
-sharper/higher-res result, no NaNs) — but neither compiled Core ML model has
-been run on-device or in Xcode's simulator, since that requires macOS. Build
-and try them on a real photo before trusting the output; if something looks
-wrong, that's the first place to look.
+for each (ran the un-converted model on a real crop, got a plausible
+sharper/higher-res result, no NaNs) — but none of the compiled Core ML
+models have been run on-device or in Xcode's simulator, since that requires
+macOS. Build and try them on a real photo before trusting the output; if
+something looks wrong, that's the first place to look.
 
-**Performance:** the general model (23 blocks) is the highest-quality but
-heaviest config — test on a physical device, not the simulator. The anime
-model (6 blocks) is noticeably smaller (~9MB vs ~33MB) and should run
-faster per tile. Neural Engine inference should be reasonably fast either
-way; CPU-only fallback will be slow per 128x128 tile, multiplied by however
-many tiles a full photo needs.
+**Performance:** the general model (23 RRDB blocks) is the highest-quality
+but heaviest config — test on a physical device, not the simulator. The
+anime model (6 blocks) is noticeably smaller (~9MB vs ~33MB). RealESRNet is
+the same size/shape as the general model (same architecture) but should
+look different, not faster. RealESRGeneralV3 is the smallest and fastest of
+the four (~2.5MB) — SRVGGNetCompact has no residual dense blocks at all.
+Neural Engine inference should be reasonably fast either way; CPU-only
+fallback will be slow per 128x128 tile, multiplied by however many tiles a
+full photo needs.
 
 ## Swapping in a different model
 
@@ -37,10 +46,11 @@ model:
 1. **Find one already converted** — search for "coreml" alongside the
    model name; check its license before shipping it.
 2. **Convert one yourself** — see [`convert/`](convert/); `convert.py`
-   takes `--weights`/`--num-block`/`--out`/`--description` so the same
-   script covers any RRDBNet-architecture Real-ESRGAN checkpoint. For a
-   genuinely different architecture, adapt it: trace the PyTorch model at a
-   fixed input size with `torch.jit.trace`, then
+   takes `--arch {rrdbnet,srvgg}` plus `--weights`/`--num-block` (rrdbnet)
+   or `--num-conv` (srvgg) /`--out`/`--description`, so it covers any
+   RRDBNet- or SRVGGNetCompact-architecture Real-ESRGAN checkpoint without
+   modification. For a genuinely different architecture, adapt it: trace
+   the PyTorch model at a fixed input size with `torch.jit.trace`, then
    `coremltools.convert(..., inputs=[ct.ImageType(...)],
    outputs=[ct.ImageType(...)])` so the compiled model takes/returns
    `CVPixelBuffer`s directly — that's what lets `CoreMLTileUpscaler` use
@@ -53,6 +63,6 @@ model:
 
 | Config field | Must equal |
 |---|---|
-| `tileSize` | The model's fixed input width/height, in pixels (128 for both bundled models) |
-| `scaleFactor` | The model's output size ÷ input size (4 for both bundled models) |
+| `tileSize` | The model's fixed input width/height, in pixels (128 for all four bundled models) |
+| `scaleFactor` | The model's output size ÷ input size (4 for all four bundled models) |
 | `overlap` | Your choice — context pixels fed to the model beyond what's kept; 8-16 is reasonable for a 128px tile (see `UpscaleQuality`'s Standard/Best presets) |

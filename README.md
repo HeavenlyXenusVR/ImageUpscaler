@@ -7,11 +7,14 @@ Vision) and needs no network call; there's a separate, optional server
 (`server/`) for debug logging, temporary cloud backup, and custom presets —
 see "Logging & cloud features" below.
 
-Ships with two real converted models — Real-ESRGAN's general-photo
-`x4plus` and anime/illustration-optimized `anime_6B` (both BSD-3-Clause,
-see [`Models/README.md`](Models/README.md)), switchable in Settings — plus
+Ships with four real converted models (all BSD-3-Clause, see
+[`Models/README.md`](Models/README.md)) — Real-ESRGAN's general-photo
+`x4plus`, anime/illustration-optimized `anime_6B`, low-artifact portrait
+`RealESRNet_x4plus`, and the fast/lightweight `realesr-general-x4v3` — plus
 a plain Lanczos-resampling fallback (`LanczosUpscaler`) so the app still
-works if a model is ever missing/swapped out.
+works if a model is ever missing/swapped out. An Auto mode tests the
+current photo against every bundled model and picks whichever comes out
+sharper, rather than relying on a fixed default.
 
 ---
 
@@ -19,9 +22,10 @@ works if a model is ever missing/swapped out.
 
 - **Before/after comparison slider** — drag to reveal, right on the main
   screen once a photo's upscaled.
-- **Model & quality picker** (Settings) — General Photo / Anime
-  illustration models, and Fast (Lanczos, instant) / Standard / Best
-  (Core ML, trading tile-seam quality for speed via context overlap).
+- **Model & quality picker** (Settings) — Auto, General Photo, Anime /
+  Illustration, Portrait, and Fast & Clean models, plus Fast (Lanczos,
+  instant) / Standard / Best (Core ML, trading tile-seam quality for speed
+  via context overlap).
 - **Custom presets** — name your own model+overlap combination beyond the
   built-in three.
 - **Batch upscale** — queue up to 20 photos, each saved to Photos as it
@@ -94,7 +98,7 @@ xcodegen generate
 open PixelBoost.xcodeproj
 ```
 
-Then build & run on a **physical device**, not the simulator — both
+Then build & run on a **physical device**, not the simulator — all four
 bundled models are full Core ML models, and Neural Engine inference is
 dramatically faster than the simulator's CPU fallback.
 
@@ -106,7 +110,7 @@ dramatically faster than the simulator's CPU fallback.
   shows up as a visible artifact with a particular model.
 - No disk-based caching of intermediate tiles — very large photos (many
   tiles) hold each tile's output in memory until the final stitch.
-- Both bundled models' conversions were checked in PyTorch (real photo in,
+- All four bundled models' conversions were checked in PyTorch (real photo in,
   plausible sharper output, no NaNs) but the actual compiled `.mlpackage`
   files have not been run in Xcode/the simulator directly — that requires
   macOS, which wasn't available where they were converted. See
