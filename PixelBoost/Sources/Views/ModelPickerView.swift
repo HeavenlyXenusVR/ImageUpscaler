@@ -132,7 +132,7 @@ private struct ModelCard: View {
 
     private var subtitle: String {
         switch choice {
-        case .auto: return "Tests your photo, keeps the sharper result"
+        case .auto: return "Runs every model on your photo — you compare and pick"
         case .generalPhoto: return "Real-ESRGAN x4plus"
         case .anime: return "Real-ESRGAN anime_6B"
         case .portrait: return "RealESRNet_x4plus — smoother, fewer artifacts on skin"

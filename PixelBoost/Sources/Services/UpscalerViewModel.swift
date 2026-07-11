@@ -3,6 +3,14 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
+/// One bundled model's full-photo result from `UpscalerViewModel.compareModels()`.
+struct ModelComparisonResult: Identifiable {
+    let id = UUID()
+    let choice: UpscaleModelChoice
+    let image: UIImage
+    let sharpnessScore: Double
+}
+
 @MainActor
 final class UpscalerViewModel: ObservableObject {
     @Published var sourceImage: UIImage?
@@ -11,6 +19,14 @@ final class UpscalerViewModel: ObservableObject {
     @Published var progress: Double = 0
     @Published var errorMessage: String?
     @Published var savedConfirmation = false
+
+    /// Populated by `compareModels()` — every bundled model's full result
+    /// for the current photo, for the user to look through and pick from.
+    /// Non-empty is what tells `ContentView` to present the comparison
+    /// gallery; clearing it (picking one, or dismissing) hides it again.
+    @Published var comparisonResults: [ModelComparisonResult] = []
+    @Published var isComparing = false
+    @Published var comparisonProgress: Double = 0
 
     let provider: UpscalerProvider
 
@@ -70,6 +86,63 @@ final class UpscalerViewModel: ObservableObject {
         }
     }
 
+    /// Runs the *entire* current photo through every bundled real model in
+    /// turn — not a quick test crop — and collects every result so the
+    /// user can look at each full image and pick the one they like,
+    /// instead of a heuristic silently choosing one for them. Each run
+    /// goes through `UpscaleRunner` exactly like a normal single upscale,
+    /// so every attempt (whichever ends up chosen or not) still shows up
+    /// in History the same way.
+    func compareModels() {
+        guard let sourceImage, !isComparing, provider.quality.overlap != nil else { return }
+        isComparing = true
+        comparisonProgress = 0
+        comparisonResults = []
+        errorMessage = nil
+
+        Task {
+            let candidates = await provider.resolveAllBundled()
+            guard !candidates.isEmpty else {
+                errorMessage = "No bundled models available to compare."
+                isComparing = false
+                Haptics.error()
+                return
+            }
+
+            var results: [ModelComparisonResult] = []
+            for (index, candidate) in candidates.enumerated() {
+                let outcome = await UpscaleRunner.run(
+                    sourceImage, using: candidate.upscaler, sourceFileSizeBytes: sourceFileSizeBytes
+                ) { [weak self] tileProgress in
+                    Task { @MainActor in
+                        self?.comparisonProgress = (Double(index) + tileProgress) / Double(candidates.count)
+                    }
+                }
+                if let result = outcome.result {
+                    results.append(ModelComparisonResult(
+                        choice: candidate.choice, image: result.image,
+                        sharpnessScore: UpscalerProvider.sharpnessScore(result.image)
+                    ))
+                }
+            }
+
+            comparisonResults = results
+            isComparing = false
+            if results.isEmpty {
+                errorMessage = "Every model failed to produce a result."
+                Haptics.error()
+            } else {
+                Haptics.success()
+            }
+        }
+    }
+
+    /// Called when the user taps "Use This" on one of `comparisonResults`.
+    func pickComparisonResult(_ result: ModelComparisonResult) {
+        resultImage = result.image
+        comparisonResults = []
+    }
+
     func saveResultToPhotos() {
         guard let resultImage else { return }
         Task {
@@ -77,6 +150,29 @@ final class UpscalerViewModel: ObservableObject {
                 try await requestPhotoLibraryAddPermission()
                 try await PHPhotoLibrary.shared().performChanges {
                     PHAssetChangeRequest.creationRequestForAsset(from: resultImage)
+                }
+                savedConfirmation = true
+                Haptics.success()
+            } catch {
+                errorMessage = error.localizedDescription
+                Haptics.error()
+            }
+        }
+    }
+
+    /// Saves every current comparison result to Photos in one action, for
+    /// anyone who'd rather decide later (or keep more than one) than pick
+    /// a single winner on the spot.
+    func saveAllComparisonResultsToPhotos() {
+        guard !comparisonResults.isEmpty else { return }
+        let images = comparisonResults.map(\.image)
+        Task {
+            do {
+                try await requestPhotoLibraryAddPermission()
+                try await PHPhotoLibrary.shared().performChanges {
+                    for image in images {
+                        PHAssetChangeRequest.creationRequestForAsset(from: image)
+                    }
                 }
                 savedConfirmation = true
                 Haptics.success()

@@ -92,6 +92,18 @@ enum UpscaleQuality: String, CaseIterable, Identifiable {
     }
 }
 
+/// Final output size, as a multiple of the source photo's own dimensions.
+/// Independent of which model runs — see `ScaledOutputUpscaler` for how a
+/// model fixed at a 4x native scale still delivers 2x/3x output.
+enum UpscaleFactor: Int, CaseIterable, Identifiable {
+    case x2 = 2
+    case x3 = 3
+    case x4 = 4
+
+    var id: Int { rawValue }
+    var displayName: String { "\(rawValue)×" }
+}
+
 /// Resolves the `ImageUpscaling` strategy to use for a run, based on the
 /// user's model/quality selection, and caches loaded Core ML models by name
 /// so switching quality presets back and forth doesn't reload the
@@ -103,13 +115,14 @@ enum UpscaleQuality: String, CaseIterable, Identifiable {
 final class UpscalerProvider: ObservableObject {
     private static let modelChoiceDefaultsKey = "com.pixelboost.modelChoice"
     private static let qualityDefaultsKey = "com.pixelboost.quality"
+    private static let scaleFactorDefaultsKey = "com.pixelboost.scaleFactor"
 
     /// Side of the test region (before the model's own scale factor) run
-    /// through each candidate during auto-selection. Big enough to span a
-    /// handful of `CoreMLTileUpscaler` tiles — one flat 128x128 crop
-    /// wouldn't reliably tell two models apart — small enough that testing
-    /// every bundled candidate still finishes in a fraction of the real
-    /// upscale's time.
+    /// through each candidate during `BatchUpscaleViewModel`'s unattended
+    /// auto-pick. Big enough to span a handful of `CoreMLTileUpscaler`
+    /// tiles — one flat 128x128 crop wouldn't reliably tell two models
+    /// apart — small enough that testing every bundled candidate still
+    /// finishes in a fraction of the real upscale's time.
     private static let autoTestRegionSize = 256
 
     @Published var modelChoice: UpscaleModelChoice {
@@ -118,16 +131,23 @@ final class UpscalerProvider: ObservableObject {
     @Published var quality: UpscaleQuality {
         didSet { UserDefaults.standard.set(quality.rawValue, forKey: Self.qualityDefaultsKey) }
     }
+    @Published var scaleFactor: UpscaleFactor {
+        didSet { UserDefaults.standard.set(scaleFactor.rawValue, forKey: Self.scaleFactorDefaultsKey) }
+    }
     /// True while a not-yet-cached model is being loaded — lets the UI show
     /// a spinner instead of silently hitching on the first use of a given
     /// model.
     @Published private(set) var isLoadingModel = false
-    /// True while `.auto` is running its candidate models over the test
-    /// region — a separate flag from `isLoadingModel` since it can span
-    /// loading *multiple* models, not just one.
+    /// True while `BatchUpscaleViewModel`'s unattended auto-pick is running
+    /// its candidate models over the test region — a separate flag from
+    /// `isLoadingModel` since it can span loading *multiple* models, not
+    /// just one.
     @Published private(set) var isTestingModels = false
-    /// Which model `.auto` picked the last time it ran, so the UI can show
-    /// "Auto picked General Photo" instead of leaving the choice invisible.
+    /// Which model batch's auto-pick last landed on, so Settings can show
+    /// "Last auto pick" instead of leaving the choice invisible. The
+    /// interactive main screen no longer auto-picks silently — see
+    /// `UpscalerViewModel.compareModels()` — so this only ever reflects a
+    /// batch run.
     @Published private(set) var lastAutoSelectedModel: UpscaleModelChoice?
 
     private var cache: [String: CoreMLTileUpscaler] = [:]
@@ -140,16 +160,23 @@ final class UpscalerProvider: ObservableObject {
             .flatMap(UpscaleModelChoice.init(rawValue:)) ?? .auto
         quality = UserDefaults.standard.string(forKey: Self.qualityDefaultsKey)
             .flatMap(UpscaleQuality.init(rawValue:)) ?? .standard
+        let storedScale = UserDefaults.standard.object(forKey: Self.scaleFactorDefaultsKey) as? Int
+        scaleFactor = storedScale.flatMap(UpscaleFactor.init(rawValue:)) ?? .x4
     }
 
-    /// Resolves the upscaler for the *current* model/quality selection.
-    /// Call again after either changes. `sourceImage`, when provided, is
-    /// used only to run `.auto`'s candidate test — it's `nil`-safe (falls
-    /// back to the first bundled candidate) since not every caller has an
-    /// image ready up front.
+    /// Resolves the upscaler for the *current* model/quality/scale
+    /// selection. Call again after any of them changes. Used by the
+    /// interactive single-image flow when a specific model (not `.auto`)
+    /// is picked, and by `BatchUpscaleViewModel` regardless of model
+    /// choice — batch has no one present to pick from a comparison per
+    /// photo, so `.auto` there still resolves via the same unattended
+    /// heuristic pick `.auto` itself used before Compare All existed.
+    /// `sourceImage`, when provided, is used only for that unattended
+    /// pick — `nil`-safe (falls back to the first bundled candidate)
+    /// since not every caller has an image ready up front.
     func resolveCurrent(for sourceImage: UIImage? = nil) async -> ImageUpscaling {
         guard let overlap = quality.overlap else {
-            return LanczosUpscaler()
+            return LanczosUpscaler(scaleFactor: Double(scaleFactor.rawValue))
         }
 
         let choice: UpscaleModelChoice
@@ -160,14 +187,39 @@ final class UpscalerProvider: ObservableObject {
             choice = modelChoice
         }
 
+        guard let base = await resolvedModel(for: choice, overlap: overlap) else {
+            return LanczosUpscaler(scaleFactor: Double(scaleFactor.rawValue))
+        }
+        return ScaledOutputUpscaler(base: base, nativeScale: 4, targetScale: scaleFactor.rawValue)
+    }
+
+    /// Resolves every *actually bundled* real model at once, each wrapped
+    /// to the current scale selection — the interactive counterpart to
+    /// `resolveCurrent`'s single pick, for `UpscalerViewModel.compareModels()`
+    /// to run the full photo through every one of them and let the user
+    /// choose by eye instead of a heuristic choosing for them.
+    func resolveAllBundled() async -> [(choice: UpscaleModelChoice, upscaler: ImageUpscaling)] {
+        guard let overlap = quality.overlap else { return [] }
+        let candidates = UpscaleModelChoice.allCases.filter { $0 != .auto && $0.isBundled }
+
+        var resolved: [(UpscaleModelChoice, ImageUpscaling)] = []
+        for candidate in candidates {
+            guard let base = await resolvedModel(for: candidate, overlap: overlap) else { continue }
+            resolved.append((candidate, ScaledOutputUpscaler(base: base, nativeScale: 4, targetScale: scaleFactor.rawValue)))
+        }
+        return resolved
+    }
+
+    /// Loads (or returns the already-cached) `CoreMLTileUpscaler` for
+    /// `choice`, or `nil` if it isn't bundled / fails to load — every
+    /// caller in this file that needs one concrete model goes through
+    /// here so the cache stays a single source of truth.
+    private func resolvedModel(for choice: UpscaleModelChoice, overlap: Int) async -> CoreMLTileUpscaler? {
         if let cached = cache[choice.modelName] {
             cached.updateOverlap(overlap)
             return cached
         }
-
-        guard let loaded = await loadUpscaler(named: choice.modelName, overlap: overlap) else {
-            return LanczosUpscaler()
-        }
+        guard let loaded = await loadUpscaler(named: choice.modelName, overlap: overlap) else { return nil }
         cache[choice.modelName] = loaded
         return loaded
     }
@@ -186,12 +238,11 @@ final class UpscalerProvider: ObservableObject {
     }
 
     /// Runs every bundled real model over one shared crop of `sourceImage`
-    /// and keeps whichever produced the sharpest, most-detailed result — a
-    /// handful of quick tile-level tests standing in for "which model would
-    /// actually look best on *this* photo" instead of a fixed default.
-    /// Returns `nil` (caller falls back to `.generalPhoto`) if there's no
-    /// image to test against or fewer than two real candidates to choose
-    /// between.
+    /// and keeps whichever produced the sharpest, most-detailed result —
+    /// used only by `BatchUpscaleViewModel`, where nobody is present to
+    /// pick per photo across a queue of up to 20. Returns `nil` (caller
+    /// falls back to `.generalPhoto`) if there's no image to test against
+    /// or fewer than two real candidates to choose between.
     private func autoSelectModel(for sourceImage: UIImage?, overlap: Int) async -> UpscaleModelChoice? {
         let candidates = UpscaleModelChoice.allCases.filter { $0 != .auto && $0.isBundled }
         guard candidates.count > 1,
@@ -205,13 +256,7 @@ final class UpscalerProvider: ObservableObject {
 
         var best: (choice: UpscaleModelChoice, score: Double)?
         for candidate in candidates {
-            guard let upscaler = await loadUpscaler(named: candidate.modelName, overlap: overlap) else { continue }
-            // Cache it now, win or lose — if it wins, resolveCurrent's own
-            // cache lookup reuses it instead of loading a second time; if
-            // it loses, it's still legitimately warm for next time this
-            // model is picked directly.
-            cache[candidate.modelName] = upscaler
-
+            guard let upscaler = await resolvedModel(for: candidate, overlap: overlap) else { continue }
             guard let result = try? await upscaler.upscale(testRegion, progress: { _ in }) else { continue }
             let score = Self.sharpnessScore(result.image)
             if best == nil || score > best!.score {
@@ -246,7 +291,9 @@ final class UpscalerProvider: ObservableObject {
     /// edge response than a smoother or blurrier one. The same family of
     /// metric autofocus systems use to score "is this in focus," repurposed
     /// here to compare candidate models instead of camera lens positions.
-    private static func sharpnessScore(_ image: UIImage) -> Double {
+    /// Not `private` — `UpscalerViewModel.compareModels()` reuses it to
+    /// show a sharpness figure alongside each full comparison result too.
+    static func sharpnessScore(_ image: UIImage) -> Double {
         guard let cgImage = image.cgImage else { return 0 }
         let ciImage = CIImage(cgImage: cgImage)
 

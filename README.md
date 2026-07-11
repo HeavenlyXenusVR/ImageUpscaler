@@ -12,14 +12,22 @@ Ships with four real converted models (all BSD-3-Clause, see
 `x4plus`, anime/illustration-optimized `anime_6B`, low-artifact portrait
 `RealESRNet_x4plus`, and the fast/lightweight `realesr-general-x4v3` — plus
 a plain Lanczos-resampling fallback (`LanczosUpscaler`) so the app still
-works if a model is ever missing/swapped out. An Auto mode tests the
-current photo against every bundled model and picks whichever comes out
-sharper, rather than relying on a fixed default.
+works if a model is ever missing/swapped out. An Auto mode runs every
+bundled model on the *full* photo and shows every result so you can
+compare and pick the one you like, rather than a heuristic quietly
+deciding for you — see "Compare Models" below.
 
 ---
 
 ## Features
 
+- **Compare Models** — with Auto selected, Upscale runs the whole photo
+  through every bundled model and shows every result in a tappable,
+  full-screen-viewable grid; pick whichever looks best, or save them all.
+- **2x/3x/4x output scale** — every model natively super-resolves at 4x
+  (that's fixed by the architecture), then the result is resized down to
+  your chosen final size — so 2x/3x still benefit from the model's full
+  detail instead of skipping analysis to hit a smaller ratio directly.
 - **Before/after comparison slider** — drag to reveal, right on the main
   screen once a photo's upscaled.
 - **Model & quality picker** (Settings) — Auto, General Photo, Anime /

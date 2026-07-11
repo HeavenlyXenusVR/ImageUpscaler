@@ -30,18 +30,27 @@ struct ContentView: View {
                     if viewModel.sourceImage != nil {
                         Button {
                             Haptics.lightImpact()
-                            viewModel.upscale()
+                            if isCompareMode {
+                                viewModel.compareModels()
+                            } else {
+                                viewModel.upscale()
+                            }
                         } label: {
-                            Label("Upscale", systemImage: "wand.and.stars")
+                            Label(
+                                isCompareMode ? "Compare Models" : "Upscale",
+                                systemImage: isCompareMode ? "square.grid.2x2" : "wand.and.stars"
+                            )
                         }
                         .buttonStyle(.pbGradient)
-                        .disabled(viewModel.isUpscaling || provider.isTestingModels)
+                        .disabled(viewModel.isUpscaling || viewModel.isComparing)
                     }
 
-                    if provider.isTestingModels {
-                        HStack(spacing: 8) {
-                            ProgressView().tint(PBColor.accent)
-                            Text("Testing models on your photo…")
+                    if viewModel.isComparing {
+                        VStack(spacing: 6) {
+                            ProgressView(value: viewModel.comparisonProgress)
+                                .progressViewStyle(.linear)
+                                .tint(PBColor.accent)
+                            Text("Running every model on your photo… \(Int(viewModel.comparisonProgress * 100))%")
                                 .font(.system(size: 13))
                                 .foregroundStyle(PBColor.inkDim)
                         }
@@ -54,30 +63,6 @@ struct ContentView: View {
                                 .font(.system(size: 13))
                                 .foregroundStyle(PBColor.inkDim)
                         }
-                    }
-
-                    if provider.modelChoice == .auto, let picked = provider.lastAutoSelectedModel,
-                       viewModel.resultImage != nil {
-                        HStack(spacing: 8) {
-                            Text("✨").font(.system(size: 13))
-                            Text("Auto picked \(picked.displayName)")
-                                .font(.system(size: 12.5, weight: .bold))
-                                .foregroundStyle(PBColor.ink)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(
-                            LinearGradient(
-                                colors: [PBColor.accent.opacity(0.14), PBColor.accent2.opacity(0.14)],
-                                startPoint: .leading, endPoint: .trailing
-                            ),
-                            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(PBColor.accent2.opacity(0.3), lineWidth: 1)
-                        )
                     }
 
                     if let resultImage = viewModel.resultImage {
@@ -164,6 +149,16 @@ struct ContentView: View {
             )) {
                 OnboardingView { hasSeenOnboarding = true }
             }
+            .fullScreenCover(isPresented: Binding(
+                get: { !viewModel.comparisonResults.isEmpty },
+                set: { isPresented in if !isPresented { viewModel.comparisonResults = [] } }
+            )) {
+                ModelComparisonView(
+                    results: viewModel.comparisonResults,
+                    onPick: { viewModel.pickComparisonResult($0) },
+                    onSaveAll: { viewModel.saveAllComparisonResultsToPhotos() }
+                )
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 2) {
@@ -187,6 +182,14 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Auto + a model-capable quality preset means there's something to
+    /// compare; Fast skips models entirely (plain Lanczos resampling), so
+    /// there's only ever one possible result and a normal single upscale
+    /// is what actually happens either way.
+    private var isCompareMode: Bool {
+        provider.modelChoice == .auto && provider.quality != .fast
     }
 
     private func toolbarIcon(_ systemName: String) -> some View {
@@ -244,7 +247,7 @@ struct ContentView: View {
                 Text("No Photo Yet")
                     .font(.system(size: 15.5, weight: .bold))
                     .foregroundStyle(PBColor.ink)
-                Text("Choose a photo — Auto will pick the model for you.")
+                Text("Choose a photo — Auto runs every model so you can compare and pick.")
                     .font(.system(size: 13))
                     .foregroundStyle(PBColor.inkDim)
                     .multilineTextAlignment(.center)

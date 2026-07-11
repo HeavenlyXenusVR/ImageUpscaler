@@ -17,8 +17,8 @@ struct OnboardingView: View {
         ),
         OnboardingPage(
             systemImage: "wand.and.stars",
-            title: "Pick, Test, Upscale",
-            message: "Choose a photo and Auto quietly tests it against every bundled model, then upscales with whichever looks sharpest. Prefer to choose yourself? General Photo and Anime/Illustration models are one tap away."
+            title: "Compare, Then Choose",
+            message: "Choose a photo, and Auto runs every bundled model on the full image so you can look at each result and pick the one you like — or skip straight to a specific model (General Photo, Anime, Portrait…) in Settings."
         ),
         OnboardingPage(
             systemImage: "icloud",

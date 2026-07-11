@@ -16,9 +16,11 @@ struct SettingsView: View {
                     qualityRow
                     PBRowDivider()
                     modelRow
+                    PBRowDivider()
+                    scaleRow
                     if provider.modelChoice == .auto, let picked = provider.lastAutoSelectedModel {
                         PBRowDivider()
-                        PBCardRow(icon: "checkmark.circle", iconTint: PBColor.good, label: "Last auto pick", value: picked.displayName)
+                        PBCardRow(icon: "checkmark.circle", iconTint: PBColor.good, label: "Last batch auto pick", value: picked.displayName)
                     }
                     if provider.isTestingModels {
                         PBRowDivider()
@@ -28,7 +30,7 @@ struct SettingsView: View {
                         loadingRow(text: "Loading model…")
                     }
                 }
-                PBFootnote(text: "Auto runs a quick test on your photo across the bundled models and keeps whichever comes out sharper — usually adds well under a second. Fast skips the model entirely (plain resampling, instant). Standard/Best trade speed for tile-seam quality.")
+                PBFootnote(text: "Auto runs every bundled model on the whole photo and shows you all of them side by side to pick from — Batch Upscale (nobody's watching per photo there) still picks automatically via a quick sharpness test instead. Fast skips the model entirely (plain resampling, instant). Standard/Best trade speed for tile-seam quality. Output Scale always analyzes at each model's native 4x, then resizes down to your chosen size — 2x/3x still benefit from the model's full detail, not a shortcut.")
 
                 CustomPresetsCard()
 
@@ -134,6 +136,17 @@ struct SettingsView: View {
             isPresentingModelPicker = true
         } label: {
             PBCardRow(icon: "sparkles", iconTint: PBColor.accent2, label: "Model", value: "\(provider.modelChoice.displayName) ›")
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var scaleRow: some View {
+        Menu {
+            ForEach(UpscaleFactor.allCases) { factor in
+                Button(factor.displayName) { provider.scaleFactor = factor }
+            }
+        } label: {
+            PBCardRow(icon: "arrow.up.left.and.arrow.down.right", label: "Output Scale", value: "\(provider.scaleFactor.displayName) ›")
         }
         .buttonStyle(.plain)
     }
