@@ -106,6 +106,14 @@ jobs:
             "PixelBoost/Resources/Assets.xcassets"
           echo "Assets.car: $(du -sh "$APP/Assets.car" 2>/dev/null || echo MISSING)"
 
+          # actool only writes the CFBundleIcons keys to this partial plist —
+          # it does NOT touch the app's own Info.plist. Without merging it in,
+          # Assets.car has the icon image but nothing tells iOS to actually
+          # use it as the home-screen icon, so Springboard shows a blank/
+          # generic icon after install even though the icon is bundled fine.
+          /usr/libexec/PlistBuddy -c "Merge /tmp/assetcatalog_output.plist" "$APP/Info.plist"
+          echo "CFBundleIcons: $(/usr/libexec/PlistBuddy -c 'Print :CFBundleIcons' "$APP/Info.plist" 2>&1)"
+
       - name: Package IPA
         id: ipa
         run: |
