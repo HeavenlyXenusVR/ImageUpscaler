@@ -21,7 +21,7 @@ struct BatchUpscaleView: View {
                         PBCardRow(icon: "photo.on.rectangle.angled", label: "Choose Photos")
                     }
                     .disabled(viewModel.isRunning)
-                    .onChange(of: pickerItems) { newValue in
+                    .onChange(of: pickerItems) { _, newValue in
                         viewModel.setSelection(newValue)
                     }
 

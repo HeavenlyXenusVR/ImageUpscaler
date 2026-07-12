@@ -28,6 +28,12 @@ deciding for you — see "Compare Models" below.
   with a transparent background, using Vision's on-device subject-lifting
   API (`VNGenerateForegroundInstanceMaskRequest`, iOS 17+) — the same
   technology behind Photos' own "Lift Subject." No custom model needed.
+- **Adjust** — brightness/contrast/saturation/exposure, live preview.
+- **Crop & Rotate** — 90° rotate plus fixed-ratio crop (Free/1:1/4:5/5:4/
+  16:9/9:16); drag the crop window to reposition it.
+- Cutout/Adjust/Crop all chain onto whichever result is currently showing
+  (crop the upscaled photo, adjust a cutout, etc.) rather than always
+  reaching back to the original.
 - **Compare Models** — with Auto selected, Upscale runs the whole photo
   through every bundled model and shows every result in a tappable,
   full-screen-viewable grid; pick whichever looks best, or save them all.
@@ -137,3 +143,7 @@ dramatically faster than the simulator's CPU fallback.
   if it misses part of the subject or includes background it shouldn't.
   Like everything else in this app, it hasn't been run on a physical
   device yet either.
+- Crop is fixed-ratio-window-plus-reposition only — no corner-drag resize
+  handles or free-angle straighten yet. Rotate is 90° increments only, no
+  flip (the flip transforms exist in `ImageTransform` but aren't wired to
+  a button yet, pending SF Symbol names worth actually trusting).

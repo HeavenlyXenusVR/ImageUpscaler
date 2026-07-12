@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var zoomedImage: UIImage?
     @State private var isBackingUp = false
     @State private var backupAlertMessage: String?
+    @State private var isPresentingAdjustments = false
+    @State private var isPresentingCropRotate = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     var body: some View {
@@ -28,32 +30,23 @@ struct ContentView: View {
                     .simultaneousGesture(TapGesture().onEnded { Haptics.lightImpact() })
 
                     if viewModel.sourceImage != nil {
-                        HStack(spacing: 10) {
-                            Button {
-                                Haptics.lightImpact()
-                                if isCompareMode {
-                                    viewModel.compareModels()
-                                } else {
-                                    viewModel.upscale()
-                                }
-                            } label: {
-                                Label(
-                                    isCompareMode ? "Compare Models" : "Upscale",
-                                    systemImage: isCompareMode ? "square.grid.2x2" : "wand.and.stars"
-                                )
+                        Button {
+                            Haptics.lightImpact()
+                            if isCompareMode {
+                                viewModel.compareModels()
+                            } else {
+                                viewModel.upscale()
                             }
-                            .buttonStyle(.pbGradient)
-                            .disabled(isAnyToolRunning)
-
-                            Button {
-                                Haptics.lightImpact()
-                                viewModel.removeBackground()
-                            } label: {
-                                Label("Cutout", systemImage: "scissors")
-                            }
-                            .buttonStyle(.pbGhost)
-                            .disabled(isAnyToolRunning)
+                        } label: {
+                            Label(
+                                isCompareMode ? "Compare Models" : "Upscale",
+                                systemImage: isCompareMode ? "square.grid.2x2" : "wand.and.stars"
+                            )
                         }
+                        .buttonStyle(.pbGradient)
+                        .disabled(isAnyToolRunning)
+
+                        toolStrip
                     }
 
                     if viewModel.isComparing {
@@ -177,6 +170,16 @@ struct ContentView: View {
                     onSaveAll: { viewModel.saveAllComparisonResultsToPhotos() }
                 )
             }
+            .fullScreenCover(isPresented: $isPresentingAdjustments) {
+                if let currentImage {
+                    AdjustmentsView(image: currentImage) { viewModel.resultImage = $0 }
+                }
+            }
+            .fullScreenCover(isPresented: $isPresentingCropRotate) {
+                if let currentImage {
+                    CropRotateView(image: currentImage) { viewModel.resultImage = $0 }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 2) {
@@ -215,6 +218,47 @@ struct ContentView: View {
     /// two at once would just race each other.
     private var isAnyToolRunning: Bool {
         viewModel.isUpscaling || viewModel.isComparing || viewModel.isRemovingBackground
+    }
+
+    /// What Cutout/Adjust/Crop all operate on — the most-recent result if
+    /// there is one, so these tools chain onto each other (crop the
+    /// upscaled photo, adjust the cutout, etc.) instead of always
+    /// reaching back to the original.
+    private var currentImage: UIImage? {
+        viewModel.resultImage ?? viewModel.sourceImage
+    }
+
+    private var toolStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                toolChip("Cutout", systemImage: "scissors") {
+                    viewModel.removeBackground()
+                }
+                toolChip("Adjust", systemImage: "slider.horizontal.3") {
+                    isPresentingAdjustments = true
+                }
+                toolChip("Crop", systemImage: "crop") {
+                    isPresentingCropRotate = true
+                }
+            }
+        }
+    }
+
+    private func toolChip(_ label: String, systemImage: String, action: @escaping () -> Void) -> some View {
+        Button {
+            Haptics.lightImpact()
+            action()
+        } label: {
+            Label(label, systemImage: systemImage)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(PBColor.ink)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(PBColor.surface2, in: Capsule())
+                .overlay(Capsule().strokeBorder(PBColor.line, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .disabled(isAnyToolRunning)
     }
 
     private func toolbarIcon(_ systemName: String) -> some View {

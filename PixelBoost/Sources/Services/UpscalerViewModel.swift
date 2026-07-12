@@ -145,20 +145,22 @@ final class UpscalerViewModel: ObservableObject {
         comparisonResults = []
     }
 
-    /// Cuts the subject out of the *original* photo (not whatever's
-    /// currently in `resultImage`) — a standalone tool alongside Upscale/
-    /// Compare Models, not a step chained onto them. `resultImage` is
-    /// reused as where the cutout lands since every downstream action
-    /// (Save/Share/Copy/the compare slider) already just works with
-    /// whatever image is there, transparency included.
+    /// Cuts the subject out of the *current* image — the most recent
+    /// result if there is one (an upscale, a previous cutout, a crop...),
+    /// otherwise the original photo — so tools chain onto each other the
+    /// same way Adjust and Crop do, rather than Cutout alone always
+    /// reaching back to the untouched original. `resultImage` is reused
+    /// as where the cutout lands since every downstream action (Save/
+    /// Share/Copy/the compare slider) already just works with whatever
+    /// image is there, transparency included.
     func removeBackground() {
-        guard let sourceImage, !isRemovingBackground else { return }
+        guard let workingImage = resultImage ?? sourceImage, !isRemovingBackground else { return }
         isRemovingBackground = true
         errorMessage = nil
 
         Task {
             do {
-                let cutout = try await BackgroundRemovalService.removeBackground(from: sourceImage)
+                let cutout = try await BackgroundRemovalService.removeBackground(from: workingImage)
                 self.resultImage = cutout
                 Haptics.success()
             } catch {
