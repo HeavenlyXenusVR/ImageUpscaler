@@ -2,80 +2,105 @@ import SwiftUI
 
 /// Fixed-aspect-ratio crop — pick a ratio, drag the resulting window to
 /// reposition — plus 90-degree rotate. Deliberately no corner-resize
-/// handles or free-angle straighten in this first pass: that gesture math
-/// is easy to get subtly wrong, and there's no way to visually verify it
-/// in this environment, so this starts with the simpler, lower-risk
-/// version (a fixed-size window you can slide) rather than a fragile
-/// full-featured one.
+/// handles or free-angle straighten: that gesture math is easy to get
+/// subtly wrong, and there's no way to visually verify it in this
+/// environment, so this stays with the simpler, lower-risk version (a
+/// fixed-size window you can slide) rather than a fragile full-featured
+/// one. Lives as its own persistent tab (see `RootView`) — "Apply" bakes
+/// the current rotation/crop onto the shared result and you stay right
+/// here, no dismiss step.
 struct CropRotateView: View {
-    let onDone: (UIImage) -> Void
+    @EnvironmentObject private var viewModel: UpscalerViewModel
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var workingImage: UIImage
+    @State private var workingImage: UIImage?
+    @State private var lastBase: UIImage?
     @State private var selectedRatio: CropRatio?
     @State private var cropRect: CGRect = .zero
     @State private var containerSize: CGSize = .zero
     @State private var dragStartOrigin: CGPoint?
-
-    init(image: UIImage, onDone: @escaping (UIImage) -> Void) {
-        self.onDone = onDone
-        _workingImage = State(initialValue: image)
-    }
+    @State private var hasChanges = false
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                GeometryReader { geo in
-                    ZStack {
-                        Image(uiImage: workingImage)
-                            .resizable()
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Group {
+                if let workingImage {
+                    VStack(spacing: 20) {
+                        GeometryReader { geo in
+                            ZStack {
+                                Image(uiImage: workingImage)
+                                    .resizable()
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                        if selectedRatio != nil {
-                            cropOverlay(containerSize: geo.size)
+                                if selectedRatio != nil {
+                                    cropOverlay(containerSize: geo.size)
+                                }
+                            }
+                            .onAppear { containerSize = geo.size }
+                            .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                            .onChange(of: selectedRatio) { _, newRatio in
+                                if let newRatio {
+                                    cropRect = Self.maxRect(for: newRatio.value, in: geo.size)
+                                    hasChanges = true
+                                }
+                            }
                         }
-                    }
-                    .onAppear { containerSize = geo.size }
-                    .onChange(of: geo.size) { _, newSize in containerSize = newSize }
-                    .onChange(of: selectedRatio) { _, newRatio in
-                        if let newRatio {
-                            cropRect = Self.maxRect(for: newRatio.value, in: geo.size)
+                        .aspectRatio(workingImage.size, contentMode: .fit)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+
+                        HStack(spacing: 10) {
+                            toolButton("rotate.left") { rotate(clockwise: false) }
+                            toolButton("rotate.right") { rotate(clockwise: true) }
                         }
+
+                        ratioChipsRow
+
+                        Button {
+                            Haptics.lightImpact()
+                            apply()
+                        } label: {
+                            Label("Apply", systemImage: "checkmark")
+                        }
+                        .buttonStyle(.pbGradient)
+                        .disabled(!hasChanges)
+                        .padding(.horizontal, 20)
+
+                        Spacer()
                     }
+                } else {
+                    emptyState
                 }
-                .aspectRatio(workingImage.size, contentMode: .fit)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                HStack(spacing: 10) {
-                    toolButton("rotate.left") { rotate(clockwise: false) }
-                    toolButton("rotate.right") { rotate(clockwise: true) }
-                }
-
-                ratioChipsRow
-
-                Spacer()
             }
             .background(PBColor.background.ignoresSafeArea())
             .navigationTitle("Crop & Rotate")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(PBColor.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        onDone(finalImage())
-                        dismiss()
-                    }
-                    .fontWeight(.bold)
-                }
-            }
+            .onChange(of: viewModel.imageVersion) { _, _ in refreshFromCurrentImage() }
+            .onAppear { refreshFromCurrentImage() }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    private func refreshFromCurrentImage() {
+        let current = viewModel.resultImage ?? viewModel.sourceImage
+        guard let current else {
+            lastBase = nil
+            workingImage = nil
+            selectedRatio = nil
+            hasChanges = false
+            return
+        }
+        guard current !== lastBase else { return }
+        lastBase = current
+        workingImage = current
+        selectedRatio = nil
+        hasChanges = false
+    }
+
+    private func apply() {
+        guard hasChanges, let workingImage else { return }
+        viewModel.resultImage = finalImage(from: workingImage)
     }
 
     private func toolButton(_ systemImage: String, action: @escaping () -> Void) -> some View {
@@ -137,16 +162,19 @@ struct CropRotateView: View {
                 newOrigin.x = max(0, min(newOrigin.x, containerSize.width - cropRect.width))
                 newOrigin.y = max(0, min(newOrigin.y, containerSize.height - cropRect.height))
                 cropRect.origin = newOrigin
+                hasChanges = true
             }
             .onEnded { _ in dragStartOrigin = nil }
     }
 
     private func rotate(clockwise: Bool) {
-        workingImage = ImageTransform.rotated90(workingImage, clockwise: clockwise)
+        guard let workingImage else { return }
+        self.workingImage = ImageTransform.rotated90(workingImage, clockwise: clockwise)
         // The old crop window was sized/positioned for the previous
         // aspect ratio — rather than trying to remap it, drop back to
         // Free and let the user re-pick a ratio against the new shape.
         selectedRatio = nil
+        hasChanges = true
     }
 
     /// Converts `cropRect` from on-screen display coordinates back to
@@ -154,7 +182,7 @@ struct CropRotateView: View {
     /// factor — safe because the container is always sized to exactly
     /// `workingImage`'s aspect ratio (`.aspectRatio(workingImage.size,
     /// contentMode: .fit)`), so there's no letterboxing to account for.
-    private func finalImage() -> UIImage {
+    private func finalImage(from workingImage: UIImage) -> UIImage {
         guard selectedRatio != nil, containerSize.width > 0, containerSize.height > 0 else { return workingImage }
         let scale = workingImage.size.width / containerSize.width
         let pixelRect = CGRect(
@@ -171,6 +199,19 @@ struct CropRotateView: View {
         }
         let origin = CGPoint(x: (container.width - size.width) / 2, y: (container.height - size.height) / 2)
         return CGRect(origin: origin, size: size)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "crop")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(PBColor.inkFaint)
+            Text("Choose a photo on the Upscale tab first.")
+                .font(.system(size: 13))
+                .foregroundStyle(PBColor.inkDim)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -202,5 +243,8 @@ private enum CropRatio: CaseIterable, Identifiable {
 }
 
 #Preview {
-    CropRotateView(image: UIImage(systemName: "photo")!) { _ in }
+    let provider = UpscalerProvider()
+    CropRotateView()
+        .environmentObject(provider)
+        .environmentObject(UpscalerViewModel(provider: provider))
 }

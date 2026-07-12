@@ -9,7 +9,6 @@ struct ContentView: View {
     @State private var zoomedImage: UIImage?
     @State private var isBackingUp = false
     @State private var backupAlertMessage: String?
-    @State private var isPresentingEditMenu = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     var body: some View {
@@ -45,14 +44,10 @@ struct ContentView: View {
                         .buttonStyle(.pbGradient)
                         .disabled(isAnyToolRunning)
 
-                        Button {
-                            Haptics.lightImpact()
-                            isPresentingEditMenu = true
-                        } label: {
-                            Label("Edit Photo", systemImage: "paintbrush")
-                        }
-                        .buttonStyle(.pbGhost)
-                        .disabled(isAnyToolRunning)
+                        Text("Edit tools — Cutout, Adjust, Crop, Filters, Overlays, Erase — live in the bar below.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(PBColor.inkFaint)
+                            .multilineTextAlignment(.center)
                     }
 
                     if viewModel.isComparing {
@@ -176,32 +171,7 @@ struct ContentView: View {
                     onSaveAll: { viewModel.saveAllComparisonResultsToPhotos() }
                 )
             }
-            .fullScreenCover(isPresented: $isPresentingEditMenu) {
-                EditMenuView()
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: 2) {
-                        NavigationLink { BatchUpscaleView(provider: provider) } label: {
-                            toolbarIcon("square.stack")
-                        }
-                        NavigationLink { CloudView() } label: {
-                            toolbarIcon("icloud")
-                        }
-                        NavigationLink { HistoryView() } label: {
-                            toolbarIcon("clock.arrow.circlepath")
-                        }
-                        NavigationLink { SettingsView() } label: {
-                            toolbarIcon("gearshape")
-                        }
-                    }
-                    .padding(4)
-                    .background(.ultraThinMaterial, in: Capsule())
-                    .overlay(Capsule().strokeBorder(PBColor.line, lineWidth: 1))
-                }
-            }
         }
-        .preferredColorScheme(.dark)
     }
 
     /// Auto + a model-capable quality preset means there's something to
@@ -217,13 +187,6 @@ struct ContentView: View {
     /// two at once would just race each other.
     private var isAnyToolRunning: Bool {
         viewModel.isUpscaling || viewModel.isComparing || viewModel.isRemovingBackground
-    }
-
-    private func toolbarIcon(_ systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundStyle(PBColor.ink)
-            .frame(width: 30, height: 30)
     }
 
     private func backupResultToCloud(_ image: UIImage) async {

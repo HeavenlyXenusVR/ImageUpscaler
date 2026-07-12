@@ -1,75 +1,65 @@
 import SwiftUI
 
-/// One-tap filter picker — a horizontal strip of thumbnails, each showing
-/// the *actual* filter rendered against this photo (not a generic swatch),
-/// tap one to preview it large above. Thumbnails are rendered once up
-/// front against a small preview copy — running every filter against the
-/// full-resolution photo just to build a picker strip would be wasteful.
+/// One-tap filter picker. Lives as its own persistent tab (see
+/// `RootView`) — picking a filter previews it large above; "Apply" bakes
+/// it onto the shared result and resets the picker back to "Original," so
+/// you can keep trying looks or switch tabs whenever, no dismiss step.
 struct FiltersView: View {
-    let image: UIImage
-    let onDone: (UIImage) -> Void
+    @EnvironmentObject private var viewModel: UpscalerViewModel
 
-    @Environment(\.dismiss) private var dismiss
     @State private var selectedFilter: PhotoFilter = .none
-    @State private var previewImage: UIImage
+    @State private var previewImage: UIImage?
+    @State private var previewSource: UIImage?
+    @State private var thumbnailSource: UIImage?
+    @State private var lastBase: UIImage?
     @State private var thumbnails: [PhotoFilter: UIImage] = [:]
-    private let previewSource: UIImage
-    private let thumbnailSource: UIImage
-
-    init(image: UIImage, onDone: @escaping (UIImage) -> Void) {
-        self.image = image
-        self.onDone = onDone
-        let preview = Self.downscaled(image, maxDimension: 800)
-        previewSource = preview
-        _previewImage = State(initialValue: preview)
-        thumbnailSource = Self.downscaled(image, maxDimension: 160)
-    }
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 20) {
-                Image(uiImage: previewImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 340)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
+            Group {
+                if let previewImage {
+                    VStack(spacing: 20) {
+                        Image(uiImage: previewImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 340)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
 
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(PhotoFilter.allCases) { filter in
-                            filterThumbnail(filter)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(PhotoFilter.allCases) { filter in
+                                    filterThumbnail(filter)
+                                }
+                            }
+                            .padding(.horizontal, 16)
                         }
-                    }
-                    .padding(.horizontal, 16)
-                }
 
-                Spacer()
+                        Button {
+                            Haptics.lightImpact()
+                            apply()
+                        } label: {
+                            Label("Apply", systemImage: "checkmark")
+                        }
+                        .buttonStyle(.pbGradient)
+                        .disabled(selectedFilter == .none)
+                        .padding(.horizontal, 20)
+
+                        Spacer()
+                    }
+                } else {
+                    emptyState
+                }
             }
             .background(PBColor.background.ignoresSafeArea())
             .navigationTitle("Filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(PBColor.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        onDone(selectedFilter.apply(to: image))
-                        dismiss()
-                    }
-                    .disabled(selectedFilter == .none)
-                    .fontWeight(.bold)
-                }
-            }
-            .task {
-                await buildThumbnails()
-            }
+            .onChange(of: viewModel.imageVersion) { _, _ in refreshFromCurrentImage() }
+            .onAppear { refreshFromCurrentImage() }
         }
-        .preferredColorScheme(.dark)
     }
 
     private func filterThumbnail(_ filter: PhotoFilter) -> some View {
@@ -101,18 +91,69 @@ struct FiltersView: View {
         .onTapGesture {
             Haptics.lightImpact()
             selectedFilter = filter
+            guard let previewSource else { return }
             previewImage = filter.apply(to: previewSource)
         }
     }
 
-    private func buildThumbnails() async {
+    /// Re-derives the preview/thumbnails from whichever photo is current.
+    /// Guarded by object identity (`!==`) so switching tabs back and forth
+    /// without anything actually changing doesn't redo all this for
+    /// nothing.
+    private func refreshFromCurrentImage() {
+        let current = viewModel.resultImage ?? viewModel.sourceImage
+        guard let current else {
+            lastBase = nil
+            previewSource = nil
+            previewImage = nil
+            thumbnailSource = nil
+            thumbnails = [:]
+            selectedFilter = .none
+            return
+        }
+        guard current !== lastBase else { return }
+        lastBase = current
+        let preview = Self.downscaled(current, maxDimension: 800)
+        previewSource = preview
+        previewImage = preview
+        selectedFilter = .none
+
+        let thumbSource = Self.downscaled(current, maxDimension: 160)
+        thumbnailSource = thumbSource
+        Task { await buildThumbnails(from: thumbSource) }
+    }
+
+    private func buildThumbnails(from source: UIImage) async {
         // Off the main actor — ten CIContext renders in a row is cheap at
         // this thumbnail size but still worth keeping off the UI thread.
-        let source = thumbnailSource
         let rendered = await Task.detached(priority: .userInitiated) {
             Dictionary(uniqueKeysWithValues: PhotoFilter.allCases.map { ($0, $0.apply(to: source)) })
         }.value
+        // Guard against a stale result landing after the user already
+        // switched to a different base photo while this was still running.
+        guard source === thumbnailSource else { return }
         thumbnails = rendered
+    }
+
+    /// Renders at full resolution and writes back to the shared result —
+    /// which will itself bump `imageVersion` and trigger
+    /// `refreshFromCurrentImage()`, resetting the picker on its own.
+    private func apply() {
+        guard selectedFilter != .none, let current = viewModel.resultImage ?? viewModel.sourceImage else { return }
+        viewModel.resultImage = selectedFilter.apply(to: current)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "camera.filters")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(PBColor.inkFaint)
+            Text("Choose a photo on the Upscale tab first.")
+                .font(.system(size: 13))
+                .foregroundStyle(PBColor.inkDim)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
@@ -130,5 +171,8 @@ struct FiltersView: View {
 }
 
 #Preview {
-    FiltersView(image: UIImage(systemName: "photo")!) { _ in }
+    let provider = UpscalerProvider()
+    FiltersView()
+        .environmentObject(provider)
+        .environmentObject(UpscalerViewModel(provider: provider))
 }

@@ -1,18 +1,21 @@
 import SwiftUI
 
 /// Add text (and, via the system keyboard's own emoji key, "stickers") on
-/// top of a photo — drag to reposition, tap to edit or delete. There's
-/// deliberately no pinch-resize or rotate gesture yet: text size and color
-/// are set in the add/edit sheet instead of a live on-canvas transform.
-/// The same reasoning `CropRotateView` gives for skipping corner-resize
-/// handles applies doubly here, since a rotate gesture would also mean
-/// getting a `CGContext` rotation sign right with no device to check it
-/// against — so this ships the simpler, lower-risk version first.
+/// top of a photo — drag to reposition, tap to edit or delete. Lives as
+/// its own persistent tab (see `RootView`); there's deliberately no
+/// pinch-resize or rotate gesture yet: text size and color are set in the
+/// add/edit sheet instead of a live on-canvas transform. The same
+/// reasoning `CropRotateView` gives for skipping corner-resize handles
+/// applies doubly here, since a rotate gesture would also mean getting a
+/// `CGContext` rotation sign right with no device to check it against —
+/// so this ships the simpler, lower-risk version first. "Apply" bakes the
+/// current overlays onto the shared result and clears the canvas for a
+/// fresh layer; no dismiss step needed.
 struct OverlaysView: View {
-    let image: UIImage
-    let onDone: (UIImage) -> Void
+    @EnvironmentObject private var viewModel: UpscalerViewModel
 
-    @Environment(\.dismiss) private var dismiss
+    @State private var baseImage: UIImage?
+    @State private var lastBase: UIImage?
     @State private var overlays: [PhotoOverlay] = []
     @State private var editingOverlay: PhotoOverlay?
     @State private var isAddingNew = false
@@ -21,54 +24,59 @@ struct OverlaysView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                GeometryReader { geo in
-                    ZStack {
-                        Image(uiImage: image)
-                            .resizable()
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Group {
+                if let baseImage {
+                    VStack(spacing: 16) {
+                        GeometryReader { geo in
+                            ZStack {
+                                Image(uiImage: baseImage)
+                                    .resizable()
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                        ForEach(overlays) { overlay in
-                            overlayView(overlay, containerSize: geo.size)
+                                ForEach(overlays) { overlay in
+                                    overlayView(overlay, containerSize: geo.size)
+                                }
+                            }
+                            .onAppear { containerSize = geo.size }
+                            .onChange(of: geo.size) { _, newSize in containerSize = newSize }
                         }
+                        .aspectRatio(baseImage.size, contentMode: .fit)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+
+                        Button {
+                            Haptics.lightImpact()
+                            isAddingNew = true
+                        } label: {
+                            Label("Add Text", systemImage: "textformat")
+                        }
+                        .buttonStyle(.pbGhost)
+                        .padding(.horizontal, 20)
+
+                        Button {
+                            Haptics.lightImpact()
+                            apply()
+                        } label: {
+                            Label("Apply", systemImage: "checkmark")
+                        }
+                        .buttonStyle(.pbGradient)
+                        .disabled(overlays.isEmpty)
+                        .padding(.horizontal, 20)
+
+                        Spacer()
                     }
-                    .onAppear { containerSize = geo.size }
-                    .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                } else {
+                    emptyState
                 }
-                .aspectRatio(image.size, contentMode: .fit)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                Button {
-                    Haptics.lightImpact()
-                    isAddingNew = true
-                } label: {
-                    Label("Add Text", systemImage: "textformat")
-                }
-                .buttonStyle(.pbGhost)
-                .padding(.horizontal, 20)
-
-                Spacer()
             }
             .background(PBColor.background.ignoresSafeArea())
             .navigationTitle("Overlays")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(PBColor.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") {
-                        onDone(OverlayCompositor.render(overlays: overlays, onto: image, canvasSize: containerSize))
-                        dismiss()
-                    }
-                    .disabled(overlays.isEmpty)
-                    .fontWeight(.bold)
-                }
-            }
+            .onChange(of: viewModel.imageVersion) { _, _ in refreshFromCurrentImage() }
+            .onAppear { refreshFromCurrentImage() }
             .sheet(isPresented: $isAddingNew) {
                 OverlayEditSheet(overlay: nil) { newOverlay in
                     var overlay = newOverlay
@@ -91,7 +99,35 @@ struct OverlaysView: View {
                 }
             }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    /// Re-derives the canvas base from whichever photo is current, and
+    /// clears in-progress overlays (they were positioned against the
+    /// *previous* base, and after a successful `apply()` are already baked
+    /// into the new one). Guarded by object identity (`!==`) so switching
+    /// tabs back and forth without anything actually changing doesn't
+    /// wipe an in-progress layer for nothing.
+    private func refreshFromCurrentImage() {
+        let current = viewModel.resultImage ?? viewModel.sourceImage
+        guard let current else {
+            lastBase = nil
+            baseImage = nil
+            overlays = []
+            return
+        }
+        guard current !== lastBase else { return }
+        lastBase = current
+        baseImage = current
+        overlays = []
+    }
+
+    /// Bakes the current overlays onto `baseImage` and writes back to the
+    /// shared result — which will itself bump `imageVersion` and trigger
+    /// `refreshFromCurrentImage()`, clearing the canvas for a fresh layer
+    /// on its own.
+    private func apply() {
+        guard !overlays.isEmpty, let baseImage, containerSize.width > 0 else { return }
+        viewModel.resultImage = OverlayCompositor.render(overlays: overlays, onto: baseImage, canvasSize: containerSize)
     }
 
     private func overlayView(_ overlay: PhotoOverlay, containerSize: CGSize) -> some View {
@@ -118,8 +154,24 @@ struct OverlaysView: View {
             )
             .onTapGesture { editingOverlay = overlay }
     }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "textformat")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(PBColor.inkFaint)
+            Text("Choose a photo on the Upscale tab first.")
+                .font(.system(size: 13))
+                .foregroundStyle(PBColor.inkDim)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
 
 #Preview {
-    OverlaysView(image: UIImage(systemName: "photo")!) { _ in }
+    let provider = UpscalerProvider()
+    OverlaysView()
+        .environmentObject(provider)
+        .environmentObject(UpscalerViewModel(provider: provider))
 }

@@ -13,8 +13,16 @@ struct ModelComparisonResult: Identifiable {
 
 @MainActor
 final class UpscalerViewModel: ObservableObject {
-    @Published var sourceImage: UIImage?
-    @Published var resultImage: UIImage?
+    @Published var sourceImage: UIImage? { didSet { imageVersion += 1 } }
+    @Published var resultImage: UIImage? { didSet { imageVersion += 1 } }
+    /// Bumped whenever `sourceImage`/`resultImage` change. Every editing
+    /// tab is a persistent tab (see `RootView`) rather than a modal handed
+    /// a fresh image each time it's opened, so each one needs some way to
+    /// notice "the current photo changed while I was in the background"
+    /// (e.g. Filters applied while you were sitting on the Adjust tab) —
+    /// `UIImage` isn't `Equatable`, so `.onChange(of: resultImage)` isn't
+    /// possible directly; tabs watch this counter instead.
+    @Published private(set) var imageVersion = 0
     @Published var isUpscaling = false
     @Published var progress: Double = 0
     @Published var errorMessage: String?

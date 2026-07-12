@@ -17,7 +17,7 @@ struct PixelBoostApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
                 .environmentObject(provider)
                 .environmentObject(viewModel)
                 // Deliberate single-theme commitment (see Views/Theme.swift)

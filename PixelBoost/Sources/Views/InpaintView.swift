@@ -9,13 +9,16 @@ private struct EraseStroke: Identifiable {
 
 /// "Object Removal" — paint over something to erase it; the marked area
 /// gets filled in via `InpaintingService`'s diffusion fill (see that
-/// file's doc comment for why it's not a generative model). Works best on
-/// small objects/blemishes over fairly uniform backgrounds.
+/// file's doc comment for why it's not a generative model). Lives as its
+/// own persistent tab (see `RootView`) — "Erase" commits the fill onto
+/// the shared result and clears the brush strokes; no dismiss step
+/// needed. Works best on small objects/blemishes over fairly uniform
+/// backgrounds.
 struct InpaintView: View {
-    let image: UIImage
-    let onDone: (UIImage) -> Void
+    @EnvironmentObject private var viewModel: UpscalerViewModel
 
-    @Environment(\.dismiss) private var dismiss
+    @State private var baseImage: UIImage?
+    @State private var lastBase: UIImage?
     @State private var strokes: [EraseStroke] = []
     @State private var currentPoints: [CGPoint] = []
     @State private var brushSize: CGFloat = 36
@@ -25,108 +28,137 @@ struct InpaintView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 16) {
-                GeometryReader { geo in
-                    ZStack {
-                        Image(uiImage: image)
-                            .resizable()
-                            .frame(width: geo.size.width, height: geo.size.height)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Group {
+                if let baseImage {
+                    VStack(spacing: 16) {
+                        GeometryReader { geo in
+                            ZStack {
+                                Image(uiImage: baseImage)
+                                    .resizable()
+                                    .frame(width: geo.size.width, height: geo.size.height)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                        Canvas { context, _ in
-                            for stroke in strokes {
-                                drawStroke(stroke.points, brushSize: stroke.brushSize, in: &context)
+                                Canvas { context, _ in
+                                    for stroke in strokes {
+                                        drawStroke(stroke.points, brushSize: stroke.brushSize, in: &context)
+                                    }
+                                    if !currentPoints.isEmpty {
+                                        drawStroke(currentPoints, brushSize: brushSize, in: &context)
+                                    }
+                                }
+                                .allowsHitTesting(false)
                             }
-                            if !currentPoints.isEmpty {
-                                drawStroke(currentPoints, brushSize: brushSize, in: &context)
+                            .contentShape(Rectangle())
+                            .allowsHitTesting(!isProcessing)
+                            .gesture(
+                                DragGesture(minimumDistance: 0)
+                                    .onChanged { value in currentPoints.append(value.location) }
+                                    .onEnded { _ in
+                                        if !currentPoints.isEmpty {
+                                            strokes.append(EraseStroke(points: currentPoints, brushSize: brushSize))
+                                        }
+                                        currentPoints = []
+                                    }
+                            )
+                            .onAppear { containerSize = geo.size }
+                            .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                        }
+                        .aspectRatio(baseImage.size, contentMode: .fit)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Brush Size")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(PBColor.ink)
+                            Slider(value: $brushSize, in: 12...80)
+                                .tint(PBColor.accent)
+                        }
+                        .padding(.horizontal, 20)
+
+                        HStack(spacing: 10) {
+                            Button {
+                                Haptics.lightImpact()
+                                strokes.removeLast()
+                            } label: {
+                                Label("Undo", systemImage: "arrow.uturn.backward")
+                            }
+                            .buttonStyle(.pbGhost)
+                            .disabled(strokes.isEmpty)
+
+                            Button {
+                                Haptics.lightImpact()
+                                strokes = []
+                            } label: {
+                                Label("Clear", systemImage: "xmark.circle")
+                            }
+                            .buttonStyle(.pbGhost)
+                            .disabled(strokes.isEmpty)
+                        }
+                        .padding(.horizontal, 20)
+
+                        Button {
+                            Haptics.lightImpact()
+                            erase()
+                        } label: {
+                            Label("Erase", systemImage: "eraser")
+                        }
+                        .buttonStyle(.pbGradient)
+                        .disabled(strokes.isEmpty || isProcessing)
+                        .padding(.horizontal, 20)
+
+                        if isProcessing {
+                            HStack(spacing: 8) {
+                                ProgressView().tint(PBColor.accent)
+                                Text("Filling in the marked area…")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(PBColor.inkDim)
                             }
                         }
-                        .allowsHitTesting(false)
+
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(PBColor.bad)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        Spacer()
                     }
-                    .contentShape(Rectangle())
-                    .allowsHitTesting(!isProcessing)
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in currentPoints.append(value.location) }
-                            .onEnded { _ in
-                                if !currentPoints.isEmpty {
-                                    strokes.append(EraseStroke(points: currentPoints, brushSize: brushSize))
-                                }
-                                currentPoints = []
-                            }
-                    )
-                    .onAppear { containerSize = geo.size }
-                    .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                } else {
+                    emptyState
                 }
-                .aspectRatio(image.size, contentMode: .fit)
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Brush Size")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(PBColor.ink)
-                    Slider(value: $brushSize, in: 12...80)
-                        .tint(PBColor.accent)
-                }
-                .padding(.horizontal, 20)
-
-                HStack(spacing: 10) {
-                    Button {
-                        Haptics.lightImpact()
-                        strokes.removeLast()
-                    } label: {
-                        Label("Undo", systemImage: "arrow.uturn.backward")
-                    }
-                    .buttonStyle(.pbGhost)
-                    .disabled(strokes.isEmpty)
-
-                    Button {
-                        Haptics.lightImpact()
-                        strokes = []
-                    } label: {
-                        Label("Clear", systemImage: "xmark.circle")
-                    }
-                    .buttonStyle(.pbGhost)
-                    .disabled(strokes.isEmpty)
-                }
-                .padding(.horizontal, 20)
-
-                if isProcessing {
-                    HStack(spacing: 8) {
-                        ProgressView().tint(PBColor.accent)
-                        Text("Filling in the marked area…")
-                            .font(.system(size: 13))
-                            .foregroundStyle(PBColor.inkDim)
-                    }
-                }
-
-                if let errorMessage {
-                    Text(errorMessage)
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(PBColor.bad)
-                        .multilineTextAlignment(.center)
-                }
-
-                Spacer()
             }
             .background(PBColor.background.ignoresSafeArea())
-            .navigationTitle("Object Removal")
+            .navigationTitle("Erase")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(PBColor.background, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Erase") { erase() }
-                        .disabled(strokes.isEmpty || isProcessing)
-                        .fontWeight(.bold)
-                }
-            }
+            .onChange(of: viewModel.imageVersion) { _, _ in refreshFromCurrentImage() }
+            .onAppear { refreshFromCurrentImage() }
         }
-        .preferredColorScheme(.dark)
+    }
+
+    /// Re-derives the canvas base from whichever photo is current, and
+    /// clears in-progress strokes (positioned against the *previous*
+    /// base; after a successful `erase()` they're already baked into the
+    /// new one). Guarded by object identity (`!==`) so switching tabs
+    /// back and forth without anything actually changing doesn't wipe an
+    /// in-progress mask for nothing.
+    private func refreshFromCurrentImage() {
+        let current = viewModel.resultImage ?? viewModel.sourceImage
+        guard let current else {
+            lastBase = nil
+            baseImage = nil
+            strokes = []
+            currentPoints = []
+            return
+        }
+        guard current !== lastBase else { return }
+        lastBase = current
+        baseImage = current
+        strokes = []
+        currentPoints = []
     }
 
     private func drawStroke(_ points: [CGPoint], brushSize: CGFloat, in context: inout GraphicsContext) {
@@ -143,18 +175,20 @@ struct InpaintView: View {
         )
     }
 
+    /// Runs the fill and writes back to the shared result — which will
+    /// itself bump `imageVersion` and trigger `refreshFromCurrentImage()`,
+    /// clearing the brush strokes on its own.
     private func erase() {
-        guard containerSize.width > 0, containerSize.height > 0, !strokes.isEmpty else { return }
+        guard let baseImage, containerSize.width > 0, containerSize.height > 0, !strokes.isEmpty else { return }
         isProcessing = true
         errorMessage = nil
-        let mask = maskImage(canvasSize: containerSize)
+        let mask = maskImage(baseImage: baseImage, canvasSize: containerSize)
 
         Task {
             do {
-                let result = try await InpaintingService.fill(image, maskImage: mask)
+                let result = try await InpaintingService.fill(baseImage, maskImage: mask)
                 Haptics.success()
-                onDone(result)
-                dismiss()
+                viewModel.resultImage = result
             } catch {
                 errorMessage = error.localizedDescription
                 Haptics.error()
@@ -165,18 +199,18 @@ struct InpaintView: View {
 
     /// Rasterizes `strokes` (in canvas-space points) into a black/white
     /// mask at the source image's own pixel size, using the same single-
-    /// uniform-scale-factor conversion `CropRotateView.finalImage()` and
-    /// `OverlayCompositor` both use — safe because the canvas is always
-    /// sized to exactly the image's aspect ratio.
-    private func maskImage(canvasSize: CGSize) -> UIImage {
-        let scale = image.size.width / canvasSize.width
+    /// uniform-scale-factor conversion `CropRotateView`/`OverlayCompositor`
+    /// both use — safe because the canvas is always sized to exactly the
+    /// image's aspect ratio.
+    private func maskImage(baseImage: UIImage, canvasSize: CGSize) -> UIImage {
+        let scale = baseImage.size.width / canvasSize.width
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
+        let renderer = UIGraphicsImageRenderer(size: baseImage.size, format: format)
         return renderer.image { rendererContext in
             UIColor.black.setFill()
-            rendererContext.fill(CGRect(origin: .zero, size: image.size))
+            rendererContext.fill(CGRect(origin: .zero, size: baseImage.size))
 
             let cgContext = rendererContext.cgContext
             cgContext.setStrokeColor(UIColor.white.cgColor)
@@ -193,8 +227,24 @@ struct InpaintView: View {
             }
         }
     }
+
+    private var emptyState: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "eraser")
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundStyle(PBColor.inkFaint)
+            Text("Choose a photo on the Upscale tab first.")
+                .font(.system(size: 13))
+                .foregroundStyle(PBColor.inkDim)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 }
 
 #Preview {
-    InpaintView(image: UIImage(systemName: "photo")!) { _ in }
+    let provider = UpscalerProvider()
+    InpaintView()
+        .environmentObject(provider)
+        .environmentObject(UpscalerViewModel(provider: provider))
 }
