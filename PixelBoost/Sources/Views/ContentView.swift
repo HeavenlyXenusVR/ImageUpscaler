@@ -9,11 +9,7 @@ struct ContentView: View {
     @State private var zoomedImage: UIImage?
     @State private var isBackingUp = false
     @State private var backupAlertMessage: String?
-    @State private var isPresentingAdjustments = false
-    @State private var isPresentingCropRotate = false
-    @State private var isPresentingFilters = false
-    @State private var isPresentingOverlays = false
-    @State private var isPresentingInpaint = false
+    @State private var isPresentingEditMenu = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     var body: some View {
@@ -49,7 +45,14 @@ struct ContentView: View {
                         .buttonStyle(.pbGradient)
                         .disabled(isAnyToolRunning)
 
-                        toolStrip
+                        Button {
+                            Haptics.lightImpact()
+                            isPresentingEditMenu = true
+                        } label: {
+                            Label("Edit Photo", systemImage: "paintbrush")
+                        }
+                        .buttonStyle(.pbGhost)
+                        .disabled(isAnyToolRunning)
                     }
 
                     if viewModel.isComparing {
@@ -173,30 +176,8 @@ struct ContentView: View {
                     onSaveAll: { viewModel.saveAllComparisonResultsToPhotos() }
                 )
             }
-            .fullScreenCover(isPresented: $isPresentingAdjustments) {
-                if let currentImage {
-                    AdjustmentsView(image: currentImage) { viewModel.resultImage = $0 }
-                }
-            }
-            .fullScreenCover(isPresented: $isPresentingCropRotate) {
-                if let currentImage {
-                    CropRotateView(image: currentImage) { viewModel.resultImage = $0 }
-                }
-            }
-            .fullScreenCover(isPresented: $isPresentingFilters) {
-                if let currentImage {
-                    FiltersView(image: currentImage) { viewModel.resultImage = $0 }
-                }
-            }
-            .fullScreenCover(isPresented: $isPresentingOverlays) {
-                if let currentImage {
-                    OverlaysView(image: currentImage) { viewModel.resultImage = $0 }
-                }
-            }
-            .fullScreenCover(isPresented: $isPresentingInpaint) {
-                if let currentImage {
-                    InpaintView(image: currentImage) { viewModel.resultImage = $0 }
-                }
+            .fullScreenCover(isPresented: $isPresentingEditMenu) {
+                EditMenuView()
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -236,56 +217,6 @@ struct ContentView: View {
     /// two at once would just race each other.
     private var isAnyToolRunning: Bool {
         viewModel.isUpscaling || viewModel.isComparing || viewModel.isRemovingBackground
-    }
-
-    /// What Cutout/Adjust/Crop all operate on — the most-recent result if
-    /// there is one, so these tools chain onto each other (crop the
-    /// upscaled photo, adjust the cutout, etc.) instead of always
-    /// reaching back to the original.
-    private var currentImage: UIImage? {
-        viewModel.resultImage ?? viewModel.sourceImage
-    }
-
-    private var toolStrip: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                toolChip("Cutout", systemImage: "scissors") {
-                    viewModel.removeBackground()
-                }
-                toolChip("Adjust", systemImage: "slider.horizontal.3") {
-                    isPresentingAdjustments = true
-                }
-                toolChip("Crop", systemImage: "crop") {
-                    isPresentingCropRotate = true
-                }
-                toolChip("Filters", systemImage: "camera.filters") {
-                    isPresentingFilters = true
-                }
-                toolChip("Overlays", systemImage: "textformat") {
-                    isPresentingOverlays = true
-                }
-                toolChip("Erase", systemImage: "eraser") {
-                    isPresentingInpaint = true
-                }
-            }
-        }
-    }
-
-    private func toolChip(_ label: String, systemImage: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.lightImpact()
-            action()
-        } label: {
-            Label(label, systemImage: systemImage)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(PBColor.ink)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(PBColor.surface2, in: Capsule())
-                .overlay(Capsule().strokeBorder(PBColor.line, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-        .disabled(isAnyToolRunning)
     }
 
     private func toolbarIcon(_ systemName: String) -> some View {

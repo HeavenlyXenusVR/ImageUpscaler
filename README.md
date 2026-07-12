@@ -24,27 +24,33 @@ deciding for you — see "Compare Models" below.
 
 ## Features
 
-- **Remove Background (Cutout)** — cuts the main subject(s) out of a photo
-  with a transparent background, using Vision's on-device subject-lifting
-  API (`VNGenerateForegroundInstanceMaskRequest`, iOS 17+) — the same
-  technology behind Photos' own "Lift Subject." No custom model needed.
-- **Adjust** — brightness/contrast/saturation/exposure, live preview.
-- **Crop & Rotate** — 90° rotate plus fixed-ratio crop (Free/1:1/4:5/5:4/
-  16:9/9:16); drag the crop window to reposition it.
-- **Filters** — ten one-tap looks (Vivid, Mono, Noir, Silvertone, Chrome,
-  Process, Transfer, Instant, Fade, Sepia) built from Core Image's built-in
-  photo-effect filters, picked from a strip of thumbnails rendered against
-  your actual photo, not generic swatches.
-- **Overlays** — add text (and, via the system keyboard's own emoji key,
-  "stickers") on top of a photo; drag to reposition, tap to edit color/size
-  or delete.
-- **Object Removal ("Erase")** — paint over something to erase it; the
-  marked area is filled in with a diffusion-based fill that pulls color
-  inward from the surrounding pixels — not a generative model, see "Known
-  simplifications" below.
-- Cutout/Adjust/Crop/Filters/Overlays/Erase all chain onto whichever result
+- **Edit Photo** — a dedicated menu (its own screen, off the main Upscale
+  flow) with a card for each editing tool, rather than everything crammed
+  into one row:
+  - **Cutout** — cuts the main subject(s) out of a photo with a
+    transparent background, using Vision's on-device subject-lifting API
+    (`VNGenerateForegroundInstanceMaskRequest`, iOS 17+) — the same
+    technology behind Photos' own "Lift Subject." No custom model needed.
+  - **Adjust** — brightness/contrast/saturation/exposure, live preview.
+  - **Crop & Rotate** — 90° rotate plus fixed-ratio crop (Free/1:1/4:5/
+    5:4/16:9/9:16); drag the crop window to reposition it.
+  - **Filters** — ten one-tap looks (Vivid, Mono, Noir, Silvertone,
+    Chrome, Process, Transfer, Instant, Fade, Sepia) built from Core
+    Image's built-in photo-effect filters, picked from a strip of
+    thumbnails rendered against your actual photo, not generic swatches.
+  - **Overlays** — add text (and, via the system keyboard's own emoji
+    key, "stickers") on top of a photo; drag to reposition, tap to edit
+    color/size or delete.
+  - **Erase** (object removal) — paint over something to erase it; the
+    marked area is filled in with a diffusion-based fill that pulls
+    color inward from the surrounding pixels — not a generative model,
+    see "Known simplifications" below.
+
+  Each tool opens its own full screen from the Edit Photo menu (Cutout
+  runs in place, since it's a single unattended action rather than a
+  screen with its own controls), and all six chain onto whichever result
   is currently showing (crop the upscaled photo, filter a cutout, etc.)
-  rather than always reaching back to the original.
+  rather than always reaching back to the original photo.
 - **Compare Models** — with Auto selected, Upscale runs the whole photo
   through every bundled model and shows every result in a tappable,
   full-screen-viewable grid; pick whichever looks best, or save them all.
