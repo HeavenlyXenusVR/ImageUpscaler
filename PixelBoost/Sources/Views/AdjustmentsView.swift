@@ -42,6 +42,17 @@ struct AdjustmentsView: View {
                                 adjustmentSlider("Exposure", value: $adjustments.exposure, range: -1.5...1.5)
                             }
 
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text("Curve")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .tracking(0.4)
+                                    .foregroundStyle(PBColor.inkFaint)
+                                CurveEditorView(points: $adjustments.curvePoints)
+                                Text("Drag a point up or down to reshape tones at that brightness level.")
+                                    .font(.system(size: 11.5))
+                                    .foregroundStyle(PBColor.inkFaint)
+                            }
+
                             Button {
                                 Haptics.lightImpact()
                                 apply()

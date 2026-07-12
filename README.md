@@ -41,7 +41,10 @@ deciding for you — see "Compare Models" below.
     Image's built-in `autoAdjustmentFilters` (the same auto-analysis API
     behind Snapseed's "Tune Image" auto button and Photoshop Express's
     "Auto Enhance") — no manual sliders, no custom model.
-  - **Adjust** — brightness/contrast/saturation/exposure, live preview.
+  - **Adjust** — brightness/contrast/saturation/exposure, plus a 5-point
+    tone curve (drag a point up/down to reshape tones at that brightness
+    level — the input positions are fixed so points can't cross over each
+    other and fold the curve back on itself), all with a live preview.
   - **Crop & Rotate** — 90° rotate plus fixed-ratio crop (Free/1:1/4:5/
     5:4/16:9/9:16); drag the crop window to reposition it.
   - **Filters** — ten one-tap looks (Vivid, Mono, Noir, Silvertone,
