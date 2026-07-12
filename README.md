@@ -50,7 +50,9 @@ deciding for you — see "Compare Models" below.
     thumbnails rendered against your actual photo, not generic swatches.
   - **Overlays** — add text (and, via the system keyboard's own emoji
     key, "stickers") on top of a photo; drag to reposition, tap to edit
-    color/size or delete.
+    color/size/font/outline/shadow or delete. Eight fonts (System,
+    Helvetica, Georgia, Courier, Typewriter, Script, Marker, Noteworthy),
+    all genuinely bundled with iOS — no custom font files.
   - **Erase** (object removal) — paint over something to erase it; the
     marked area is filled in with a diffusion-based fill that pulls
     color inward from the surrounding pixels — not a generative model,
@@ -196,8 +198,12 @@ dramatically faster than the simulator's CPU fallback.
   a button yet, pending SF Symbol names worth actually trusting).
 - Overlays are text-only, drag-to-reposition only — no pinch-resize or
   rotate gesture, and no dedicated sticker-art library (emoji via the
-  system keyboard cover that role instead). Size/color are set from a
-  sheet, not a live on-canvas transform.
+  system keyboard cover that role instead). Size/color/font/outline/shadow
+  are set from a sheet, not a live on-canvas transform. The outline
+  effect's on-canvas preview is an approximation (stacked offset copies,
+  since SwiftUI's `Text` has no real stroke modifier) — the actual saved
+  result uses a proper text-stroke attribute and looks a bit cleaner than
+  the live preview.
 - Object Removal ("Erase") is a classical diffusion fill (repeated,
   growing-radius blur with the unmasked pixels held fixed), not a
   generative inpainting model — there's no on-device Vision-framework

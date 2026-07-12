@@ -21,11 +21,24 @@ enum OverlayCompositor {
         return renderer.image { _ in
             image.draw(in: CGRect(origin: .zero, size: image.size))
             for overlay in overlays {
-                let font = UIFont.systemFont(ofSize: overlay.fontSize * scaleFactor)
-                let attributes: [NSAttributedString.Key: Any] = [
+                let font = overlay.font.uiFont(size: overlay.fontSize * scaleFactor)
+                var attributes: [NSAttributedString.Key: Any] = [
                     .font: font,
                     .foregroundColor: UIColor(overlay.color),
                 ]
+                if overlay.hasStroke {
+                    attributes[.strokeColor] = UIColor.black
+                    // Negative width draws both fill and stroke together —
+                    // positive would draw an outline-only (hollow) glyph.
+                    attributes[.strokeWidth] = -4.0
+                }
+                if overlay.hasShadow {
+                    let shadow = NSShadow()
+                    shadow.shadowColor = UIColor.black.withAlphaComponent(0.6)
+                    shadow.shadowOffset = CGSize(width: 0, height: 2 * scaleFactor)
+                    shadow.shadowBlurRadius = 4 * scaleFactor
+                    attributes[.shadow] = shadow
+                }
                 let string = overlay.text as NSString
                 let textSize = string.size(withAttributes: attributes)
                 let origin = CGPoint(

@@ -131,12 +131,29 @@ struct OverlaysView: View {
     }
 
     private func overlayView(_ overlay: PhotoOverlay, containerSize: CGSize) -> some View {
-        Text(overlay.text)
-            .font(.system(size: overlay.fontSize))
-            .foregroundStyle(overlay.color)
-            .fixedSize()
-            .position(overlay.position)
-            .gesture(
+        ZStack {
+            // A real stroke API doesn't exist for SwiftUI's `Text` — this
+            // approximates one for the live preview by stacking a few
+            // small-offset black copies underneath the fill text.
+            // `OverlayCompositor`'s actual bake uses a real
+            // NSAttributedString stroke attribute, so the final result is
+            // exact even though this preview is just a stand-in for it.
+            if overlay.hasStroke {
+                ForEach(Self.strokeOffsets, id: \.self) { offset in
+                    Text(overlay.text)
+                        .font(overlay.font.font(size: overlay.fontSize))
+                        .foregroundStyle(.black)
+                        .offset(offset)
+                }
+            }
+            Text(overlay.text)
+                .font(overlay.font.font(size: overlay.fontSize))
+                .foregroundStyle(overlay.color)
+                .shadow(color: overlay.hasShadow ? .black.opacity(0.6) : .clear, radius: 3, x: 0, y: 2)
+        }
+        .fixedSize()
+        .position(overlay.position)
+        .gesture(
                 DragGesture()
                     .onChanged { value in
                         guard let index = overlays.firstIndex(where: { $0.id == overlay.id }) else { return }
@@ -154,6 +171,12 @@ struct OverlaysView: View {
             )
             .onTapGesture { editingOverlay = overlay }
     }
+
+    private static let strokeOffsets: [CGSize] = [
+        CGSize(width: -1.2, height: -1.2), CGSize(width: 0, height: -1.2), CGSize(width: 1.2, height: -1.2),
+        CGSize(width: -1.2, height: 0), CGSize(width: 1.2, height: 0),
+        CGSize(width: -1.2, height: 1.2), CGSize(width: 0, height: 1.2), CGSize(width: 1.2, height: 1.2),
+    ]
 
     private var emptyState: some View {
         VStack(spacing: 10) {

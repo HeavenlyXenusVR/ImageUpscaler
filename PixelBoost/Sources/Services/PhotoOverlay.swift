@@ -9,6 +9,13 @@ struct PhotoOverlay: Identifiable, Equatable {
     var text: String
     var color: Color = .white
     var fontSize: CGFloat = 48
+    var font: OverlayFont = .system
+    /// Fixed black outline/shadow rather than a user-configurable color —
+    /// keeps the edit sheet to a couple of toggles instead of two more
+    /// color pickers, and a black outline/shadow is the near-universal
+    /// default in every editor that has this (Picsart, Canva, etc.).
+    var hasStroke = false
+    var hasShadow = false
     /// Center point in the *overlay canvas's* own coordinate space (the
     /// GeometryReader in `OverlaysView`, sized to exactly the image's
     /// aspect ratio) — converted to the image's pixel space only once, at
