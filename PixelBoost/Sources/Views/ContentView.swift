@@ -12,6 +12,7 @@ struct ContentView: View {
     @State private var isPresentingAdjustments = false
     @State private var isPresentingCropRotate = false
     @State private var isPresentingFilters = false
+    @State private var isPresentingOverlays = false
     @AppStorage("hasSeenOnboarding") private var hasSeenOnboarding = false
 
     var body: some View {
@@ -186,6 +187,11 @@ struct ContentView: View {
                     FiltersView(image: currentImage) { viewModel.resultImage = $0 }
                 }
             }
+            .fullScreenCover(isPresented: $isPresentingOverlays) {
+                if let currentImage {
+                    OverlaysView(image: currentImage) { viewModel.resultImage = $0 }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 2) {
@@ -248,6 +254,9 @@ struct ContentView: View {
                 }
                 toolChip("Filters", systemImage: "camera.filters") {
                     isPresentingFilters = true
+                }
+                toolChip("Overlays", systemImage: "textformat") {
+                    isPresentingOverlays = true
                 }
             }
         }

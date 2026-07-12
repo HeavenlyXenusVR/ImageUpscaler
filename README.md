@@ -35,9 +35,12 @@ deciding for you — see "Compare Models" below.
   Process, Transfer, Instant, Fade, Sepia) built from Core Image's built-in
   photo-effect filters, picked from a strip of thumbnails rendered against
   your actual photo, not generic swatches.
-- Cutout/Adjust/Crop/Filters all chain onto whichever result is currently
-  showing (crop the upscaled photo, filter a cutout, etc.) rather than
-  always reaching back to the original.
+- **Overlays** — add text (and, via the system keyboard's own emoji key,
+  "stickers") on top of a photo; drag to reposition, tap to edit color/size
+  or delete.
+- Cutout/Adjust/Crop/Filters/Overlays all chain onto whichever result is
+  currently showing (crop the upscaled photo, filter a cutout, etc.) rather
+  than always reaching back to the original.
 - **Compare Models** — with Auto selected, Upscale runs the whole photo
   through every bundled model and shows every result in a tappable,
   full-screen-viewable grid; pick whichever looks best, or save them all.
@@ -151,3 +154,7 @@ dramatically faster than the simulator's CPU fallback.
   handles or free-angle straighten yet. Rotate is 90° increments only, no
   flip (the flip transforms exist in `ImageTransform` but aren't wired to
   a button yet, pending SF Symbol names worth actually trusting).
+- Overlays are text-only, drag-to-reposition only — no pinch-resize or
+  rotate gesture, and no dedicated sticker-art library (emoji via the
+  system keyboard cover that role instead). Size/color are set from a
+  sheet, not a live on-canvas transform.
