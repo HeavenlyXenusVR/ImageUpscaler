@@ -33,6 +33,7 @@ struct RootView: View {
         case .cutout: CutoutTabView()
         case .enhance: AutoEnhanceView()
         case .adjust: AdjustmentsView()
+        case .selective: SelectiveAdjustView()
         case .crop: CropRotateView()
         case .filters: FiltersView()
         case .overlays: OverlaysView()

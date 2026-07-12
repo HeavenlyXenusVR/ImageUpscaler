@@ -1,12 +1,5 @@
 import SwiftUI
 
-/// One finger-painted stroke marking part of the photo to erase.
-private struct EraseStroke: Identifiable {
-    let id = UUID()
-    var points: [CGPoint]
-    var brushSize: CGFloat
-}
-
 /// "Object Removal" — paint over something to erase it; the marked area
 /// gets filled in via `InpaintingService`'s diffusion fill (see that
 /// file's doc comment for why it's not a generative model). Lives as its
@@ -19,7 +12,7 @@ struct InpaintView: View {
 
     @State private var baseImage: UIImage?
     @State private var lastBase: UIImage?
-    @State private var strokes: [EraseStroke] = []
+    @State private var strokes: [BrushStroke] = []
     @State private var currentPoints: [CGPoint] = []
     @State private var brushSize: CGFloat = 36
     @State private var containerSize: CGSize = .zero
@@ -55,7 +48,7 @@ struct InpaintView: View {
                                     .onChanged { value in currentPoints.append(value.location) }
                                     .onEnded { _ in
                                         if !currentPoints.isEmpty {
-                                            strokes.append(EraseStroke(points: currentPoints, brushSize: brushSize))
+                                            strokes.append(BrushStroke(points: currentPoints, brushSize: brushSize))
                                         }
                                         currentPoints = []
                                     }
@@ -182,7 +175,7 @@ struct InpaintView: View {
         guard let baseImage, containerSize.width > 0, containerSize.height > 0, !strokes.isEmpty else { return }
         isProcessing = true
         errorMessage = nil
-        let mask = maskImage(baseImage: baseImage, canvasSize: containerSize)
+        let mask = BrushMask.rasterize(strokes, canvasSize: containerSize, pixelSize: baseImage.size)
 
         Task {
             do {
@@ -194,37 +187,6 @@ struct InpaintView: View {
                 Haptics.error()
             }
             isProcessing = false
-        }
-    }
-
-    /// Rasterizes `strokes` (in canvas-space points) into a black/white
-    /// mask at the source image's own pixel size, using the same single-
-    /// uniform-scale-factor conversion `CropRotateView`/`OverlayCompositor`
-    /// both use — safe because the canvas is always sized to exactly the
-    /// image's aspect ratio.
-    private func maskImage(baseImage: UIImage, canvasSize: CGSize) -> UIImage {
-        let scale = baseImage.size.width / canvasSize.width
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = true
-        let renderer = UIGraphicsImageRenderer(size: baseImage.size, format: format)
-        return renderer.image { rendererContext in
-            UIColor.black.setFill()
-            rendererContext.fill(CGRect(origin: .zero, size: baseImage.size))
-
-            let cgContext = rendererContext.cgContext
-            cgContext.setStrokeColor(UIColor.white.cgColor)
-            cgContext.setLineCap(.round)
-            cgContext.setLineJoin(.round)
-            for stroke in strokes {
-                guard let first = stroke.points.first else { continue }
-                cgContext.setLineWidth(stroke.brushSize * scale)
-                cgContext.move(to: CGPoint(x: first.x * scale, y: first.y * scale))
-                for point in stroke.points.dropFirst() {
-                    cgContext.addLine(to: CGPoint(x: point.x * scale, y: point.y * scale))
-                }
-                cgContext.strokePath()
-            }
         }
     }
 
