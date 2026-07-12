@@ -82,10 +82,10 @@ enum RestoreService {
         // blurring so the blur doesn't pull in transparent/black pixels
         // from beyond the image edge.
         let maskCI = CIImage(cgImage: maskCG)
-        let blurredMask = maskCI
-            .clampedToExtent()
-            .applyingGaussianBlur(radius: Double(min(width, height)) * 0.02)
-            .cropped(to: maskCI.extent)
+        let blur = CIFilter.gaussianBlur()
+        blur.inputImage = maskCI.clampedToExtent()
+        blur.radius = Float(min(width, height)) * 0.02
+        let blurredMask = (blur.outputImage ?? maskCI).cropped(to: maskCI.extent)
 
         let ciImage = CIImage(cgImage: cgImage)
         let sharpen = CIFilter.sharpenLuminance()
