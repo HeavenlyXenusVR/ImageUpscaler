@@ -37,6 +37,12 @@ deciding for you — see "Compare Models" below.
     transparent background, using Vision's on-device subject-lifting API
     (`VNGenerateForegroundInstanceMaskRequest`, iOS 17+) — the same
     technology behind Photos' own "Lift Subject." No custom model needed.
+    Once the result has transparency, a **Background** strip appears
+    right below it — seven curated fills (five solid/gradient swatches,
+    plus a blurred copy of the original photo, the common "fake bokeh"
+    trick) to place behind the cutout subject. Not a generative
+    "AI-replace the background with a new scene" model — see "Known
+    simplifications" below.
   - **Enhance** — one-tap automatic exposure/color correction via Core
     Image's built-in `autoAdjustmentFilters` (the same auto-analysis API
     behind Snapseed's "Tune Image" auto button and Photoshop Express's
@@ -231,6 +237,13 @@ dramatically faster than the simulator's CPU fallback.
   a little but can't reconstruct detail that genuinely isn't there, and it
   does nothing on a photo with no detectable face. Denoise is a single
   `CINoiseReduction` pass with no per-region strength control.
+- Background Replace (part of Cutout) is seven curated fills — solid
+  colors, two gradients, a blurred copy of the original photo — not a
+  generative model that invents a plausible new scene behind the subject.
+  The blurred-original option always blurs the very first photo you
+  picked, not whatever intermediate edit is currently showing, since
+  there's no tracked "pre-cutout" version once other edits have chained on
+  top.
 - All fourteen tabs stay mounted simultaneously for the app's whole lifetime
   (so switching tabs never loses in-progress work) rather than being
   created/destroyed on demand — a small, deliberate memory-vs-simplicity

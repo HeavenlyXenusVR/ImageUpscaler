@@ -80,7 +80,7 @@ enum PhotoLibrarySaver {
     private static func encodedData(for image: UIImage, format: ExportFormat, quality: Double) -> Data? {
         switch format {
         case .auto:
-            return hasAlpha(image) ? image.pngData() : image.jpegData(compressionQuality: quality)
+            return image.hasAlphaChannel ? image.pngData() : image.jpegData(compressionQuality: quality)
         case .png:
             return image.pngData()
         case .jpeg:
@@ -92,11 +92,6 @@ enum PhotoLibrarySaver {
             // rather than failing the save outright.
             return heicData(for: image, quality: quality) ?? image.jpegData(compressionQuality: quality)
         }
-    }
-
-    private static func hasAlpha(_ image: UIImage) -> Bool {
-        let alphaInfo = image.cgImage?.alphaInfo ?? .none
-        return ![.none, .noneSkipLast, .noneSkipFirst].contains(alphaInfo)
     }
 
     private static func heicData(for image: UIImage, quality: Double) -> Data? {
