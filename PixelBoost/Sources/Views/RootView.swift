@@ -9,6 +9,8 @@ import SwiftUI
 /// the rest into "More" — not workable for a dozen tabs).
 struct RootView: View {
     @EnvironmentObject private var provider: UpscalerProvider
+    @EnvironmentObject private var viewModel: UpscalerViewModel
+    @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .home
 
     var body: some View {
@@ -24,6 +26,22 @@ struct RootView: View {
             bottomBar
         }
         .preferredColorScheme(.dark)
+        .onAppear { consumeSharedPhotoIfNeeded() }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active { consumeSharedPhotoIfNeeded() }
+        }
+    }
+
+    /// The Share Extension runs in a separate process and can only drop a
+    /// photo into a shared App Group container (see `SharedPhotoBridge`) —
+    /// this is the main app's side of that hand-off, checked on launch and
+    /// every time the app comes back to the foreground (covers both "share
+    /// into PixelBoost while it's not running" and "share while it's
+    /// already open in the background").
+    private func consumeSharedPhotoIfNeeded() {
+        guard let image = SharedPhotoBridge.consumePendingImage() else { return }
+        viewModel.loadSharedImage(image)
+        selectedTab = .home
     }
 
     @ViewBuilder

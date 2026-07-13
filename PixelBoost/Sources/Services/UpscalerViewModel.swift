@@ -76,6 +76,20 @@ final class UpscalerViewModel: ObservableObject {
         }
     }
 
+    /// Same reset/normalize path as `load(from:)`, but for a photo handed
+    /// in directly (from `SharedPhotoBridge`, i.e. the Share Extension)
+    /// rather than picked from Photos. `sourceAssetIdentifier` stays nil —
+    /// there's no original Photos asset to overwrite, so saving falls back
+    /// to adding a new asset, same as any other identifier-less load.
+    func loadSharedImage(_ image: UIImage) {
+        errorMessage = nil
+        resultImage = nil
+        sourceAssetIdentifier = nil
+        guard let cgImage = image.cgImage else { return }
+        sourceImage = UIImage(cgImage: cgImage, scale: 1, orientation: .up)
+        sourceFileSizeBytes = nil
+    }
+
     func upscale() {
         guard let sourceImage, !isUpscaling else { return }
         isUpscaling = true

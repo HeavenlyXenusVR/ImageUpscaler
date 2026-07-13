@@ -135,6 +135,14 @@ deciding for you — see "Compare Models" below.
   to the server and restore them later (per-device, no accounts).
 - Share sheet, copy to clipboard, full-screen pinch-to-zoom preview,
   haptic feedback.
+- **Share-in extension** — share a photo from Photos, Safari, Files, or any
+  other app straight into PixelBoost via the system share sheet. A separate
+  process from the main app (`PixelBoostShare` target), so it can't jump
+  straight into the editor — it drops the image into a shared App Group
+  container and the main app picks it up the next time it's brought to the
+  foreground. Deliberately built on the system-provided
+  `SLComposeServiceViewController` compose sheet rather than a custom
+  screen; see "Known simplifications" below.
 
 All server-backed features are optional and default off — the app is
 fully functional and fully offline with no server configured.
@@ -264,3 +272,15 @@ dramatically faster than the simulator's CPU fallback.
   created/destroyed on demand — a small, deliberate memory-vs-simplicity
   tradeoff that hasn't been profiled on a real device, since none is
   available where this was built.
+- The Share Extension is the riskiest piece shipped so far to have never
+  run on a device or simulator: an extension's host-app lifecycle,
+  App Group container access, and `SLComposeServiceViewController`'s
+  compose-sheet behavior are all things Xcode can compile but can't be
+  exercised without actually installing the app and triggering a real
+  share sheet. It's also unsigned (this repo has no code-signing secrets
+  configured — see "Building" below), and a sideloading tool re-signing
+  the IPA with a different team/App Group entitlement than
+  `group.com.pixelboost.shared` would silently break the hand-off (the
+  extension would still "succeed" from the sharing app's point of view,
+  but the photo would never reach the main app) — flag this as unverified
+  if anyone hits it.

@@ -14,7 +14,7 @@ settings:
     SWIFT_VERSION: "5.10"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
     TARGETED_DEVICE_FAMILY: "1,2"
-    MARKETING_VERSION: "3.15.1"
+    MARKETING_VERSION: "3.16.0"
     CURRENT_PROJECT_VERSION: "1"
     ENABLE_BITCODE: "NO"
   configs:
@@ -29,6 +29,9 @@ targets:
   PixelBoost:
     type: application
     platform: iOS
+    dependencies:
+      - target: PixelBoostShare
+        embed: true
     sources:
       - path: PixelBoost/Sources
       # Drop a RealESRGAN*.mlmodel/.mlpackage (or your own converted model)
@@ -63,6 +66,11 @@ targets:
         # CI-built IPAs have it baked in; the raw value never touches a file
         # in this repo.
         UPSCALER_BRIDGE_API_KEY: ""
+    entitlements:
+      path: PixelBoost/Resources/PixelBoost.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.pixelboost.shared
     scheme:
       buildAction:
         targets:
@@ -71,3 +79,33 @@ targets:
         config: Debug
       archiveAction:
         config: Release
+
+  # Minimal share-in extension — lets another app's share sheet (Photos,
+  # Safari, Files, etc.) hand a single image to PixelBoost. There's no
+  # in-process link between an extension and its host app, so it can't
+  # jump straight into the editor; it just drops the image into a shared
+  # App Group container (see Sources/Shared/SharedPhotoBridge.swift) and
+  # the main app picks it up the next time it becomes active. Deliberately
+  # kept to the system-provided SLComposeServiceViewController UI (no
+  # storyboard, no custom screen) — an extension's host-app lifecycle
+  # can't be exercised without a device/simulator, so this leans on the
+  # most standard, longest-stable API surface available rather than a
+  # custom interface that can't be visually checked before shipping.
+  PixelBoostShare:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PixelBoostShare/Sources
+      - path: PixelBoost/Sources/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.pixelboost.ios.share
+        INFOPLIST_FILE: PixelBoostShare/Info.plist
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        SKIP_INSTALL: YES
+    entitlements:
+      path: PixelBoostShare/PixelBoostShare.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.pixelboost.shared
