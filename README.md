@@ -24,10 +24,10 @@ deciding for you — see "Compare Models" below.
 
 ## Features
 
-- **Bottom tab bar** — every screen (Upscale plus all nine editing tools,
+- **Bottom tab bar** — every screen (Upscale plus all ten editing tools,
   plus Batch/Cloud/History/Settings) is its own tab in a horizontally
   scrollable bar along the bottom, instead of tools being buried behind a
-  menu or a top toolbar. There are fourteen tabs, more than the ~5 a native
+  menu or a top toolbar. There are fifteen tabs, more than the ~5 a native
   iOS tab bar shows before collapsing the rest into an auto-generated
   "More" list, so this is a custom bar rather than `TabView`. Every tab
   stays mounted the whole time you have the app open, so switching away
@@ -74,6 +74,15 @@ deciding for you — see "Compare Models" below.
     just around faces Vision detects (`VNDetectFaceLandmarksRequest`) — a
     classical detail boost, not a trained restoration model (GFPGAN/
     CodeFormer-class); see "Known simplifications" below.
+  - **Clone Stamp** — tap a source point, then paint elsewhere to copy
+    pixels from a fixed offset relative to that point (the offset is set
+    once, from the source point and the first spot you paint, then stays
+    constant for every stroke after that — the standard clone-stamp
+    gesture). Implemented as one whole-image shift (`CIAffineTransform`)
+    composited back over the original only within the painted area
+    (`CIBlendWithMask`), rather than sampling pixel-by-pixel along the
+    drag — same result, since the offset never changes mid-stroke anyway.
+    Tap "Change Source" to pick a new area at any time.
 
   Each editing tab has an **Apply** button instead of a Done/Cancel —
   applying bakes the edit onto the shared result and resets that tab back
@@ -81,7 +90,7 @@ deciding for you — see "Compare Models" below.
   strokes), but you stay right there; there's no dismiss step, you just
   tap another tab whenever you want to move on. Cutout is the one
   exception — it's a single unattended action, not something with
-  in-place controls, so it just runs and updates in place. All nine chain
+  in-place controls, so it just runs and updates in place. All ten chain
   onto whichever result is currently showing (crop the upscaled photo,
   filter a cutout, etc.) rather than always reaching back to the original
   photo.
@@ -244,7 +253,13 @@ dramatically faster than the simulator's CPU fallback.
   picked, not whatever intermediate edit is currently showing, since
   there's no tracked "pre-cutout" version once other edits have chained on
   top.
-- All fourteen tabs stay mounted simultaneously for the app's whole lifetime
+- Clone Stamp composites a whole-image shift over the painted mask in one
+  pass rather than sampling continuously along the drag, and there's no
+  live second cursor tracking the source offset as you paint (only the
+  fixed source-point marker) — both are safe simplifications since the
+  offset is genuinely constant for the whole gesture, same as a real
+  clone-stamp tool, just without the extra live-preview chrome.
+- All fifteen tabs stay mounted simultaneously for the app's whole lifetime
   (so switching tabs never loses in-progress work) rather than being
   created/destroyed on demand — a small, deliberate memory-vs-simplicity
   tradeoff that hasn't been profiled on a real device, since none is

@@ -5,7 +5,7 @@ import Foundation
 /// rest into an auto-generated "More" list, so `RootView` builds its own
 /// horizontally scrollable bar instead of using `TabView`.
 enum AppTab: String, CaseIterable, Identifiable {
-    case home, cutout, enhance, adjust, selective, crop, filters, overlays, erase, restore, batch, cloud, history, settings
+    case home, cutout, enhance, adjust, selective, crop, filters, overlays, erase, restore, clone, batch, cloud, history, settings
 
     var id: String { rawValue }
 
@@ -21,6 +21,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .overlays: return "Overlays"
         case .erase: return "Erase"
         case .restore: return "Restore"
+        case .clone: return "Clone"
         case .batch: return "Batch"
         case .cloud: return "Cloud"
         case .history: return "History"
@@ -40,6 +41,7 @@ enum AppTab: String, CaseIterable, Identifiable {
         case .overlays: return "textformat"
         case .erase: return "eraser"
         case .restore: return "bandage"
+        case .clone: return "stamp"
         case .batch: return "square.stack"
         case .cloud: return "icloud"
         case .history: return "clock.arrow.circlepath"
