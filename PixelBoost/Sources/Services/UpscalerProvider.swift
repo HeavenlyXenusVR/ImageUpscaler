@@ -143,6 +143,16 @@ final class UpscalerProvider: ObservableObject {
     private static let scaleFactorDefaultsKey = "com.pixelboost.scaleFactor"
     private static let exportFormatDefaultsKey = "com.pixelboost.exportFormat"
     private static let exportQualityDefaultsKey = "com.pixelboost.exportQuality"
+    private static let denoiseBeforeUpscaleDefaultsKey = "com.pixelboost.denoiseBeforeUpscale"
+    private static let sharpenAmountDefaultsKey = "com.pixelboost.sharpenAmount"
+    private static let autoSaveEnabledDefaultsKey = "com.pixelboost.autoSaveEnabled"
+    private static let preserveOriginalDefaultsKey = "com.pixelboost.preserveOriginal"
+    private static let watermarkEnabledDefaultsKey = "com.pixelboost.watermarkEnabled"
+    private static let watermarkTextDefaultsKey = "com.pixelboost.watermarkText"
+    private static let watermarkPositionDefaultsKey = "com.pixelboost.watermarkPosition"
+    private static let watermarkOpacityDefaultsKey = "com.pixelboost.watermarkOpacity"
+    private static let defaultTabDefaultsKey = "com.pixelboost.defaultTab"
+    private static let accentThemeDefaultsKey = "com.pixelboost.accentTheme"
 
     /// Side of the test region (before the model's own scale factor) run
     /// through each candidate during `BatchUpscaleViewModel`'s unattended
@@ -170,6 +180,63 @@ final class UpscalerProvider: ObservableObject {
     /// wants "the same tradeoff," not to retune it per format.
     @Published var exportQuality: Double {
         didSet { UserDefaults.standard.set(exportQuality, forKey: Self.exportQualityDefaultsKey) }
+    }
+    /// Runs `RestoreService.denoise` on the source photo before it's handed
+    /// to the upscaler — helps a model avoid amplifying sensor noise into
+    /// upscaled speckle on grainy/low-light source photos. Off by default
+    /// since it softens fine detail slightly on already-clean photos.
+    @Published var denoiseBeforeUpscale: Bool {
+        didSet { UserDefaults.standard.set(denoiseBeforeUpscale, forKey: Self.denoiseBeforeUpscaleDefaultsKey) }
+    }
+    /// 0...1, applied via `PostSharpen` right after the upscale finishes
+    /// (on the final, already-upscaled image). 0 is off — a model's own
+    /// output is usually sharp enough on its own; this is for anyone who
+    /// wants an extra edge-crispness pass on top, same idea as Restore's
+    /// face-sharpen but applied over the whole frame.
+    @Published var sharpenAmount: Double {
+        didSet { UserDefaults.standard.set(sharpenAmount, forKey: Self.sharpenAmountDefaultsKey) }
+    }
+    /// When on, a successful single-photo upscale calls
+    /// `UpscalerViewModel.saveResultToPhotos()` on its own right after
+    /// finishing — for anyone who always taps Save anyway. Doesn't apply to
+    /// Batch (already saves every item as it completes) or Compare Models
+    /// (nothing to save until a candidate's picked).
+    @Published var autoSaveEnabled: Bool {
+        didSet { UserDefaults.standard.set(autoSaveEnabled, forKey: Self.autoSaveEnabledDefaultsKey) }
+    }
+    /// When on, every save (single photo and Batch) always adds a new
+    /// Photos asset instead of overwriting the original in place — the
+    /// opt-out for anyone who wants the pre-overwrite-default behavior
+    /// back. See `PhotoLibrarySaver`.
+    @Published var preserveOriginal: Bool {
+        didSet { UserDefaults.standard.set(preserveOriginal, forKey: Self.preserveOriginalDefaultsKey) }
+    }
+    @Published var watermarkEnabled: Bool {
+        didSet { UserDefaults.standard.set(watermarkEnabled, forKey: Self.watermarkEnabledDefaultsKey) }
+    }
+    @Published var watermarkText: String {
+        didSet { UserDefaults.standard.set(watermarkText, forKey: Self.watermarkTextDefaultsKey) }
+    }
+    @Published var watermarkPosition: WatermarkPosition {
+        didSet { UserDefaults.standard.set(watermarkPosition.rawValue, forKey: Self.watermarkPositionDefaultsKey) }
+    }
+    @Published var watermarkOpacity: Double {
+        didSet { UserDefaults.standard.set(watermarkOpacity, forKey: Self.watermarkOpacityDefaultsKey) }
+    }
+    /// Which tab `RootView` selects on launch. Read once, at app start —
+    /// see `AccentTheme`'s doc comment for why settings read only once at
+    /// launch are the safe pattern here (every tab stays mounted for the
+    /// app's whole lifetime, so there's no later point this would "just
+    /// re-apply" on its own without extra plumbing).
+    @Published var defaultTab: AppTab {
+        didSet { UserDefaults.standard.set(defaultTab.rawValue, forKey: Self.defaultTabDefaultsKey) }
+    }
+    /// Persisted immediately on change, but only actually read by
+    /// `PBColor` once, at first access — see `AccentTheme`. Settings shows
+    /// the current selection either way (so the picker itself stays
+    /// accurate), with a footnote explaining the next-launch delay.
+    @Published var accentTheme: AccentTheme {
+        didSet { UserDefaults.standard.set(accentTheme.rawValue, forKey: Self.accentThemeDefaultsKey) }
     }
     /// True while a not-yet-cached model is being loaded — lets the UI show
     /// a spinner instead of silently hitching on the first use of a given
@@ -203,6 +270,21 @@ final class UpscalerProvider: ObservableObject {
             .flatMap(ExportFormat.init(rawValue:)) ?? .auto
         let storedQuality = UserDefaults.standard.object(forKey: Self.exportQualityDefaultsKey) as? Double
         exportQuality = storedQuality ?? 0.9
+        denoiseBeforeUpscale = UserDefaults.standard.bool(forKey: Self.denoiseBeforeUpscaleDefaultsKey)
+        let storedSharpen = UserDefaults.standard.object(forKey: Self.sharpenAmountDefaultsKey) as? Double
+        sharpenAmount = storedSharpen ?? 0
+        autoSaveEnabled = UserDefaults.standard.bool(forKey: Self.autoSaveEnabledDefaultsKey)
+        preserveOriginal = UserDefaults.standard.bool(forKey: Self.preserveOriginalDefaultsKey)
+        watermarkEnabled = UserDefaults.standard.bool(forKey: Self.watermarkEnabledDefaultsKey)
+        watermarkText = UserDefaults.standard.string(forKey: Self.watermarkTextDefaultsKey) ?? ""
+        watermarkPosition = UserDefaults.standard.string(forKey: Self.watermarkPositionDefaultsKey)
+            .flatMap(WatermarkPosition.init(rawValue:)) ?? .bottomRight
+        let storedWatermarkOpacity = UserDefaults.standard.object(forKey: Self.watermarkOpacityDefaultsKey) as? Double
+        watermarkOpacity = storedWatermarkOpacity ?? 0.7
+        defaultTab = UserDefaults.standard.string(forKey: Self.defaultTabDefaultsKey)
+            .flatMap(AppTab.init(rawValue:)) ?? .home
+        accentTheme = UserDefaults.standard.string(forKey: Self.accentThemeDefaultsKey)
+            .flatMap(AccentTheme.init(rawValue:)) ?? .blue
     }
 
     /// Resolves the upscaler for the *current* model/quality/scale

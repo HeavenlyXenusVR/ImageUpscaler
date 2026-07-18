@@ -26,7 +26,14 @@ struct RootView: View {
             bottomBar
         }
         .preferredColorScheme(.dark)
-        .onAppear { consumeSharedPhotoIfNeeded() }
+        .onAppear {
+            // Applied once, at launch, before any tab switching — a
+            // shared photo waiting in the App Group container (checked
+            // right after) always wins and jumps to Home regardless, same
+            // as it already did before this setting existed.
+            selectedTab = provider.defaultTab
+            consumeSharedPhotoIfNeeded()
+        }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { consumeSharedPhotoIfNeeded() }
         }

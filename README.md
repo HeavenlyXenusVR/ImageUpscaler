@@ -47,19 +47,22 @@ deciding for you — see "Compare Models" below.
     Image's built-in `autoAdjustmentFilters` (the same auto-analysis API
     behind Snapseed's "Tune Image" auto button and Photoshop Express's
     "Auto Enhance") — no manual sliders, no custom model.
-  - **Adjust** — brightness/contrast/saturation/exposure, plus a 5-point
-    tone curve (drag a point up/down to reshape tones at that brightness
-    level — the input positions are fixed so points can't cross over each
-    other and fold the curve back on itself), all with a live preview.
+  - **Adjust** — brightness/contrast/saturation/exposure/vignette, plus a
+    5-point tone curve (drag a point up/down to reshape tones at that
+    brightness level — the input positions are fixed so points can't cross
+    over each other and fold the curve back on itself), all with a live
+    preview.
   - **Selective** — the same brightness/contrast/saturation/exposure
     adjustments as Adjust, but paint a region first and they apply only
     there, blended back over the untouched original everywhere else.
   - **Crop & Rotate** — 90° rotate plus fixed-ratio crop (Free/1:1/4:5/
     5:4/16:9/9:16); drag the crop window to reposition it.
-  - **Filters** — ten one-tap looks (Vivid, Mono, Noir, Silvertone,
-    Chrome, Process, Transfer, Instant, Fade, Sepia) built from Core
-    Image's built-in photo-effect filters, picked from a strip of
-    thumbnails rendered against your actual photo, not generic swatches.
+  - **Filters** — thirteen one-tap looks (Vivid, Mono, Noir, Silvertone,
+    Chrome, Process, Transfer, Instant, Fade, Sepia, Warm, Cool, Matte)
+    built from Core Image's built-in photo-effect filters (plus a few
+    hand-tuned `CIColorMatrix`/`CIToneCurve` combinations for Warm/Cool/
+    Matte), picked from a strip of thumbnails rendered against your actual
+    photo, not generic swatches.
   - **Overlays** — add text (and, via the system keyboard's own emoji
     key, "stickers") on top of a photo; drag to reposition, tap to edit
     color/size/font/outline/shadow or delete. Eight fonts (System,
@@ -103,6 +106,27 @@ deciding for you — see "Compare Models" below.
   detail instead of skipping analysis to hit a smaller ratio directly.
 - **Before/after comparison slider** — drag to reveal, right on the main
   screen once a photo's upscaled.
+- **Denoise before upscale & sharpen after** (Settings) — an optional
+  `CINoiseReduction` pass on the source photo right before it's handed to
+  the model (helps avoid amplifying sensor noise into upscaled speckle on
+  grainy/low-light photos), and an optional `CISharpenLuminance` pass on
+  the finished result. Both off by default, both apply to single-photo and
+  Batch upscales alike.
+- **Revert to Original** — one tap on the main screen backs a chain of
+  edits (upscale, crop, filter, whatever) all the way out to the
+  untouched original photo you picked, without re-picking it.
+- **Text watermark** (Settings) — draw your own text over a chosen corner
+  (or center) of every saved photo, with an opacity slider. Applies to
+  every save path: single photo, Batch, and Compare Models' "Save All."
+- **Auto-Save After Upscale** (Settings) — skip the Save tap for a
+  single-photo upscale; saves itself the moment it finishes.
+- **Preserve Original** (Settings) — opts back out of the overwrite-in-
+  place default below, so every save always adds a new photo instead.
+- **Accent color** (Settings) — eight curated color themes beyond the
+  default blue, applied app-wide; see "Known simplifications" for why it
+  takes effect on next launch rather than live.
+- **Default landing tab** (Settings) — choose which tab PixelBoost opens
+  to instead of always starting on Upscale.
 - **Save overwrites the original by default** — saving a result (single
   photo or batch) replaces the original photo you picked in place, rather
   than adding a second, duplicate copy next to it. Uses `PHContentEditingOutput`
@@ -297,3 +321,17 @@ dramatically faster than the simulator's CPU fallback.
   device available here to actually watch a cross-device sync happen, so
   the multi-device behavior is unverified, only the local read/write path
   has been checked by reading through Apple's documented `KVS` semantics.
+- Accent color takes effect on next launch, not live. Every tab is created
+  once and stays mounted for the app's whole session (see above) — making
+  a color change apply instantly everywhere would mean forcing the whole
+  view tree to recreate, which would also wipe every tab's in-progress
+  state. Settings still shows which color is selected immediately; only
+  the actual app-wide re-tint is delayed to the next cold launch.
+- Warm/Cool/Matte (Filters) and the new Vignette slider (Adjust) are all
+  fixed, one-directional `CIColorMatrix`/`CIVignette`/`CIToneCurve`
+  combinations, hand-picked the same way Vivid/Sepia were — not verified
+  against real output on a device, same caveat as everything else in this
+  app's image pipeline.
+- Denoise Before Upscale runs at one fixed strength (not a slider) when
+  toggled on — same one-axis-at-a-time reasoning as the rest of Restore's
+  denoise control.

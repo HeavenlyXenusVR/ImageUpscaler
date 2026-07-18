@@ -18,6 +18,10 @@ struct SettingsView: View {
                     modelRow
                     PBRowDivider()
                     scaleRow
+                    PBRowDivider()
+                    denoiseRow
+                    PBRowDivider()
+                    sharpenRow
                     if provider.modelChoice == .auto, let picked = provider.lastAutoSelectedModel {
                         PBRowDivider()
                         PBCardRow(icon: "checkmark.circle", iconTint: PBColor.good, label: "Last batch auto pick", value: picked.displayName)
@@ -44,6 +48,60 @@ struct SettingsView: View {
                     }
                 }
                 PBFootnote(text: "Auto keeps a photo's transparency if it has any (a Cutout result, say) by saving as PNG, and uses JPEG otherwise — pick HEIC or JPEG to force a specific format (both lose any transparency), or PNG to always keep it lossless. Applies to every save, single photo or batch.")
+
+                PBSectionLabel(title: "Watermark")
+                PBCard {
+                    Toggle(isOn: $provider.watermarkEnabled) {
+                        Text("Add Watermark")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(PBColor.ink)
+                    }
+                    .tint(PBColor.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    if provider.watermarkEnabled {
+                        PBRowDivider()
+                        fieldRow(icon: "textformat") {
+                            TextField("Your name or @handle", text: $provider.watermarkText)
+                                .foregroundStyle(PBColor.ink)
+                        }
+                        PBRowDivider()
+                        watermarkPositionRow
+                        PBRowDivider()
+                        watermarkOpacityRow
+                    }
+                }
+                PBFootnote(text: "Draws your text over the bottom-right (or wherever you pick) corner of every saved photo — single, batch, and Compare Models' \"Save All.\" A signature/credit line, not copy protection.")
+
+                PBSectionLabel(title: "Automation")
+                PBCard {
+                    Toggle(isOn: $provider.autoSaveEnabled) {
+                        Text("Auto-Save After Upscale")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(PBColor.ink)
+                    }
+                    .tint(PBColor.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    PBRowDivider()
+                    Toggle(isOn: $provider.preserveOriginal) {
+                        Text("Preserve Original")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(PBColor.ink)
+                    }
+                    .tint(PBColor.accent)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                }
+                PBFootnote(text: "Auto-Save saves a single-photo Upscale result the moment it finishes, no Save tap needed (Batch already always saves per photo). Preserve Original always adds a new photo instead of overwriting the one you picked, undoing the overwrite-by-default behavior everywhere else in the app.")
+
+                PBSectionLabel(title: "Appearance")
+                PBCard {
+                    accentThemeRow
+                    PBRowDivider()
+                    defaultTabRow
+                }
+                PBFootnote(text: "Accent color takes effect the next time you open PixelBoost, not live — every tab stays mounted for the app's whole session, so nothing re-reads this choice until a fresh launch.")
 
                 PBSectionLabel(title: "Feedback")
                 PBCard {
@@ -158,6 +216,103 @@ struct SettingsView: View {
             }
         } label: {
             PBCardRow(icon: "arrow.up.left.and.arrow.down.right", label: "Output Scale", value: "\(provider.scaleFactor.displayName) ›")
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var denoiseRow: some View {
+        Toggle(isOn: $provider.denoiseBeforeUpscale) {
+            Text("Denoise Before Upscale")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(PBColor.ink)
+        }
+        .tint(PBColor.accent)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private var sharpenRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Sharpen After Upscale")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(PBColor.ink)
+                Spacer()
+                Text(provider.sharpenAmount > 0 ? "\(Int(provider.sharpenAmount * 100))%" : "Off")
+                    .font(.system(size: 13))
+                    .foregroundStyle(PBColor.inkDim)
+            }
+            Slider(value: $provider.sharpenAmount, in: 0...1)
+                .tint(PBColor.accent)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var watermarkPositionRow: some View {
+        Menu {
+            ForEach(WatermarkPosition.allCases) { position in
+                Button(position.displayName) { provider.watermarkPosition = position }
+            }
+        } label: {
+            PBCardRow(icon: "text.alignleft", label: "Position", value: "\(provider.watermarkPosition.displayName) ›")
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var watermarkOpacityRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Opacity")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(PBColor.ink)
+                Spacer()
+                Text("\(Int(provider.watermarkOpacity * 100))%")
+                    .font(.system(size: 13))
+                    .foregroundStyle(PBColor.inkDim)
+            }
+            Slider(value: $provider.watermarkOpacity, in: 0.1...1)
+                .tint(PBColor.accent)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+    }
+
+    private var accentThemeRow: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Accent Color")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(PBColor.ink)
+            HStack(spacing: 10) {
+                ForEach(AccentTheme.allCases) { theme in
+                    Button {
+                        provider.accentTheme = theme
+                        Haptics.lightImpact()
+                    } label: {
+                        Circle()
+                            .fill(theme.primary)
+                            .frame(width: 30, height: 30)
+                            .overlay(
+                                Circle().strokeBorder(
+                                    provider.accentTheme == theme ? PBColor.ink : Color.clear, lineWidth: 2
+                                )
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+    }
+
+    private var defaultTabRow: some View {
+        Menu {
+            ForEach(AppTab.allCases) { tab in
+                Button(tab.title) { provider.defaultTab = tab }
+            }
+        } label: {
+            PBCardRow(icon: "house", label: "Open To", value: "\(provider.defaultTab.title) ›")
         }
         .buttonStyle(.plain)
     }

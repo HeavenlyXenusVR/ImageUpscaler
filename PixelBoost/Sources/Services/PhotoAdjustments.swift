@@ -25,6 +25,11 @@ struct PhotoAdjustments: Equatable {
     /// 0.75, 1 — `CIToneCurve`'s five control points. `identityCurve` (a
     /// straight diagonal, output == input) is the neutral/no-op shape.
     var curvePoints: [Double] = Self.identityCurve
+    /// 0...1, `CIVignette`'s `intensity` input. 0 is unchanged (no
+    /// vignette). Radius is a fixed heuristic (not user-adjustable, for
+    /// the same reason a lot of this file's other magic numbers are fixed
+    /// — no device here to tune a second axis against real output).
+    var vignetteIntensity: Double = 0
 
     static let identityCurve: [Double] = [0, 0.25, 0.5, 0.75, 1]
     static let identity = PhotoAdjustments()
@@ -68,6 +73,19 @@ struct PhotoAdjustments: Equatable {
             toneCurve.point3 = CGPoint(x: 0.75, y: curvePoints[3])
             toneCurve.point4 = CGPoint(x: 1.0, y: curvePoints[4])
             if let output = toneCurve.outputImage {
+                ciImage = output
+            }
+        }
+
+        // Applied last of all — a vignette is a framing/finishing touch,
+        // same reasoning as why the tone curve goes after the basic
+        // sliders.
+        if vignetteIntensity > 0 {
+            let vignette = CIFilter.vignette()
+            vignette.inputImage = ciImage
+            vignette.intensity = Float(vignetteIntensity)
+            vignette.radius = 1.8
+            if let output = vignette.outputImage {
                 ciImage = output
             }
         }

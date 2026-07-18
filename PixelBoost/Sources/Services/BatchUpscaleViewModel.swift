@@ -69,15 +69,24 @@ final class BatchUpscaleViewModel: ObservableObject {
             }
             let normalized = UIImage(cgImage: cgImage, scale: 1, orientation: .up)
             let outcome = await UpscaleRunner.run(
-                normalized, using: upscaler, sourceFileSizeBytes: data.count
+                normalized, using: upscaler, sourceFileSizeBytes: data.count,
+                denoiseAmount: provider.denoiseBeforeUpscale ? 0.5 : 0,
+                sharpenAmount: provider.sharpenAmount
             ) { _ in }
             guard let result = outcome.result else {
                 items[index].status = .failed(outcome.error?.localizedDescription ?? "Upscale failed.")
                 return
             }
+            let imageToSave = provider.watermarkEnabled
+                ? Watermark.apply(
+                    text: provider.watermarkText, position: provider.watermarkPosition,
+                    opacity: provider.watermarkOpacity, to: result.image
+                )
+                : result.image
             try await PhotoLibrarySaver.save(
-                result.image, overwriting: items[index].pickerItem.itemIdentifier,
-                format: provider.exportFormat, quality: provider.exportQuality
+                imageToSave, overwriting: items[index].pickerItem.itemIdentifier,
+                format: provider.exportFormat, quality: provider.exportQuality,
+                forceNewAsset: provider.preserveOriginal
             )
             // Keep only a small thumbnail, not the full-resolution result —
             // a 4000x4000 output is ~64MB uncompressed, and holding N of

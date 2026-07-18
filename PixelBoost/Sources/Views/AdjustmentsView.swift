@@ -40,6 +40,7 @@ struct AdjustmentsView: View {
                                 adjustmentSlider("Contrast", value: $adjustments.contrast, range: 0.5...1.5)
                                 adjustmentSlider("Saturation", value: $adjustments.saturation, range: 0...2)
                                 adjustmentSlider("Exposure", value: $adjustments.exposure, range: -1.5...1.5)
+                                adjustmentSlider("Vignette", value: $adjustments.vignetteIntensity, range: 0...1)
                             }
 
                             VStack(alignment: .leading, spacing: 10) {

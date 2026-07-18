@@ -12,8 +12,15 @@ import UIKit
 /// deleted/moved since picking, or the user declines full library access
 /// for the overwrite path — so a save never just fails outright over this.
 enum PhotoLibrarySaver {
-    static func save(_ image: UIImage, overwriting assetIdentifier: String?, format: ExportFormat, quality: Double) async throws {
-        if let assetIdentifier, await overwriteOriginalAsset(assetIdentifier, with: image, format: format, quality: quality) {
+    /// - Parameter forceNewAsset: skips the overwrite path entirely and
+    ///   always adds a new asset — the "Preserve Original" Settings toggle,
+    ///   for anyone who wants the pre-overwrite-default behavior back.
+    static func save(
+        _ image: UIImage, overwriting assetIdentifier: String?, format: ExportFormat, quality: Double,
+        forceNewAsset: Bool = false
+    ) async throws {
+        if !forceNewAsset, let assetIdentifier,
+           await overwriteOriginalAsset(assetIdentifier, with: image, format: format, quality: quality) {
             return
         }
         try await saveAsNewAsset(image, format: format, quality: quality)

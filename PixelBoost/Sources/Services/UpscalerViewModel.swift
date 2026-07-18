@@ -102,19 +102,36 @@ final class UpscalerViewModel: ObservableObject {
             // model/quality selection changes in Settings mid-flight.
             let upscaler = await provider.resolveCurrent(for: sourceImage)
             let outcome = await UpscaleRunner.run(
-                sourceImage, using: upscaler, sourceFileSizeBytes: sourceFileSizeBytes
+                sourceImage, using: upscaler, sourceFileSizeBytes: sourceFileSizeBytes,
+                denoiseAmount: provider.denoiseBeforeUpscale ? 0.5 : 0,
+                sharpenAmount: provider.sharpenAmount
             ) { [weak self] value in
                 Task { @MainActor in self?.progress = value }
             }
             if let result = outcome.result {
                 self.resultImage = result.image
                 Haptics.success()
+                if provider.autoSaveEnabled {
+                    saveResultToPhotos()
+                }
             } else if let error = outcome.error {
                 self.errorMessage = error.localizedDescription
                 Haptics.error()
             }
             self.isUpscaling = false
         }
+    }
+
+    /// Clears the current result so `resultImage ?? sourceImage` (what
+    /// every tab chains onto) falls back to the untouched original photo —
+    /// a single-tap way to back out of a chain of edits without re-picking
+    /// the photo from scratch. `sourceImage` itself is never touched, so
+    /// re-upscaling/re-editing after a revert still starts from the same
+    /// original.
+    func revertToOriginal() {
+        guard resultImage != nil else { return }
+        resultImage = nil
+        Haptics.lightImpact()
     }
 
     /// Runs the *entire* current photo through every bundled real model in
@@ -208,11 +225,18 @@ final class UpscalerViewModel: ObservableObject {
     /// result" state.
     func saveResultToPhotos() {
         guard let resultImage else { return }
+        let imageToSave = provider.watermarkEnabled
+            ? Watermark.apply(
+                text: provider.watermarkText, position: provider.watermarkPosition,
+                opacity: provider.watermarkOpacity, to: resultImage
+            )
+            : resultImage
         Task {
             do {
                 try await PhotoLibrarySaver.save(
-                    resultImage, overwriting: sourceAssetIdentifier,
-                    format: provider.exportFormat, quality: provider.exportQuality
+                    imageToSave, overwriting: sourceAssetIdentifier,
+                    format: provider.exportFormat, quality: provider.exportQuality,
+                    forceNewAsset: provider.preserveOriginal
                 )
                 savedConfirmation = true
                 Haptics.success()
@@ -232,11 +256,18 @@ final class UpscalerViewModel: ObservableObject {
     func saveAllComparisonResultsToPhotos() {
         guard !comparisonResults.isEmpty else { return }
         let images = comparisonResults.map(\.image)
+        let watermarkEnabled = provider.watermarkEnabled
+        let watermarkText = provider.watermarkText
+        let watermarkPosition = provider.watermarkPosition
+        let watermarkOpacity = provider.watermarkOpacity
         Task {
             do {
                 for image in images {
+                    let imageToSave = watermarkEnabled
+                        ? Watermark.apply(text: watermarkText, position: watermarkPosition, opacity: watermarkOpacity, to: image)
+                        : image
                     try await PhotoLibrarySaver.saveAsNewAsset(
-                        image, format: provider.exportFormat, quality: provider.exportQuality
+                        imageToSave, format: provider.exportFormat, quality: provider.exportQuality
                     )
                 }
                 savedConfirmation = true

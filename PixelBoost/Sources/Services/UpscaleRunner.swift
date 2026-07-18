@@ -13,15 +13,29 @@ enum UpscaleRunner {
     /// - Parameter sourceFileSizeBytes: from the original encoded photo
     ///   data, if available — see `UpscalerViewModel.load(from:)` for why
     ///   this is the only point it's ever known.
+    /// - Parameter denoiseAmount: 0...1, run via `RestoreService.denoise`
+    ///   on `sourceImage` *before* it's handed to `upscaler` — cheap
+    ///   relative to the upscale itself, and only ever applied to the copy
+    ///   fed to the model, never to what gets logged/returned as the
+    ///   "source" for anything else.
+    /// - Parameter sharpenAmount: 0...1, run via `PostSharpen` on the
+    ///   result *after* upscaling succeeds — a no-op on failure, since
+    ///   there's nothing to sharpen.
     static func run(
         _ sourceImage: UIImage,
         using upscaler: ImageUpscaling,
         sourceFileSizeBytes: Int?,
+        denoiseAmount: Double = 0,
+        sharpenAmount: Double = 0,
         progress: @escaping (Double) -> Void
     ) async -> Outcome {
         let startedAt = Date()
+        let upscalerInput = denoiseAmount > 0 ? RestoreService.denoise(sourceImage, amount: denoiseAmount) : sourceImage
         do {
-            let result = try await upscaler.upscale(sourceImage, progress: progress)
+            var result = try await upscaler.upscale(upscalerInput, progress: progress)
+            if sharpenAmount > 0 {
+                result = UpscaleResult(image: PostSharpen.apply(result.image, amount: sharpenAmount), tileCount: result.tileCount)
+            }
             log(
                 upscaler: upscaler, sourceImage: sourceImage, sourceFileSizeBytes: sourceFileSizeBytes,
                 outputImage: result.image, tileCount: result.tileCount, startedAt: startedAt, error: nil

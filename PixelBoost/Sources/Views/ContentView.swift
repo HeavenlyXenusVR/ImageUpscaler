@@ -103,6 +103,15 @@ struct ContentView: View {
                             .buttonStyle(.pbGhost)
                         }
 
+                        if viewModel.sourceImage != nil {
+                            Button {
+                                viewModel.revertToOriginal()
+                            } label: {
+                                Label("Revert to Original", systemImage: "arrow.uturn.backward")
+                            }
+                            .buttonStyle(.pbGhost)
+                        }
+
                         if ServerConfig.baseURL != nil {
                             Button {
                                 Task { await backupResultToCloud(resultImage) }

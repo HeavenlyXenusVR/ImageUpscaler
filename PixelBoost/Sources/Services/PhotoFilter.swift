@@ -21,6 +21,9 @@ enum PhotoFilter: String, CaseIterable, Identifiable {
     case instant
     case fade
     case sepia
+    case warm
+    case cool
+    case matte
 
     var id: String { rawValue }
 
@@ -37,6 +40,9 @@ enum PhotoFilter: String, CaseIterable, Identifiable {
         case .instant: return "Instant"
         case .fade: return "Fade"
         case .sepia: return "Sepia"
+        case .warm: return "Warm"
+        case .cool: return "Cool"
+        case .matte: return "Matte"
         }
     }
 
@@ -96,6 +102,51 @@ enum PhotoFilter: String, CaseIterable, Identifiable {
             filter.inputImage = ciImage
             filter.intensity = 0.85
             output = filter.outputImage
+        case .warm:
+            // Per-channel gain via CIColorMatrix, diagonal only (each
+            // output channel scales just its own input channel, like
+            // Vivid's CIColorControls tweak above) — boosts red, trims
+            // blue. A fixed one-directional preset, not a user-tunable
+            // slider, so there's no sign to get backwards blind, same
+            // reasoning as why Adjust has no temperature slider.
+            let filter = CIFilter.colorMatrix()
+            filter.inputImage = ciImage
+            filter.rVector = CIVector(x: 1.12, y: 0, z: 0, w: 0)
+            filter.gVector = CIVector(x: 0, y: 1.03, z: 0, w: 0)
+            filter.bVector = CIVector(x: 0, y: 0, z: 0.85, w: 0)
+            filter.biasVector = CIVector(x: 0.02, y: 0.01, z: 0, w: 0)
+            output = filter.outputImage
+        case .cool:
+            let filter = CIFilter.colorMatrix()
+            filter.inputImage = ciImage
+            filter.rVector = CIVector(x: 0.90, y: 0, z: 0, w: 0)
+            filter.gVector = CIVector(x: 0, y: 1.0, z: 0, w: 0)
+            filter.bVector = CIVector(x: 0, y: 0, z: 1.14, w: 0)
+            filter.biasVector = CIVector(x: 0, y: 0, z: 0.02, w: 0)
+            output = filter.outputImage
+        case .matte:
+            // Faded, lifted-black look: desaturate/flatten contrast a
+            // touch, then a tone curve that raises the shadow end (0 maps
+            // to 0.08 instead of 0) and compresses the highlight end (1
+            // maps to 0.92) — same five-point `CIToneCurve` shape
+            // `PhotoAdjustments`' curve editor uses, just fixed here
+            // instead of user-draggable.
+            let colorControls = CIFilter.colorControls()
+            colorControls.inputImage = ciImage
+            colorControls.saturation = 0.85
+            colorControls.contrast = 0.92
+            if let base = colorControls.outputImage {
+                let toneCurve = CIFilter.toneCurve()
+                toneCurve.inputImage = base
+                toneCurve.point0 = CGPoint(x: 0, y: 0.08)
+                toneCurve.point1 = CGPoint(x: 0.25, y: 0.30)
+                toneCurve.point2 = CGPoint(x: 0.5, y: 0.52)
+                toneCurve.point3 = CGPoint(x: 0.75, y: 0.74)
+                toneCurve.point4 = CGPoint(x: 1.0, y: 0.92)
+                output = toneCurve.outputImage
+            } else {
+                output = nil
+            }
         }
 
         // Extent, not `.zero`-origin image.size — none of these filters

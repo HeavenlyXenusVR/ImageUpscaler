@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 /// Shared dark-canvas visual language for the redesigned UI — a deliberate
@@ -15,8 +16,13 @@ enum PBColor {
     static let ink = Color(red: 0.953, green: 0.961, blue: 0.976)
     static let inkDim = Color(red: 0.533, green: 0.569, blue: 0.639)
     static let inkFaint = Color(red: 0.337, green: 0.361, blue: 0.420)
-    static let accent = Color(red: 0.239, green: 0.545, blue: 1.0)
-    static let accent2 = Color(red: 0.545, green: 0.420, blue: 1.0)
+    /// Reads the user's `AccentTheme` choice once, effectively at launch —
+    /// see `AccentTheme`'s doc comment for why this is a `static let`
+    /// (evaluated once per process) rather than a live-updating value.
+    private static let theme: AccentTheme = UserDefaults.standard.string(forKey: "com.pixelboost.accentTheme")
+        .flatMap(AccentTheme.init(rawValue:)) ?? .blue
+    static let accent = theme.primary
+    static let accent2 = theme.secondary
     static let good = Color(red: 0.2, green: 0.820, blue: 0.478)
     static let warn = Color(red: 1.0, green: 0.714, blue: 0.282)
     static let bad = Color(red: 1.0, green: 0.361, blue: 0.361)
