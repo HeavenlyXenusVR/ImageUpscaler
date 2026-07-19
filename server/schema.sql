@@ -45,6 +45,23 @@ CREATE TABLE IF NOT EXISTS upscale_history (
     INDEX idx_failures (success, created_at)
 );
 
+-- General-purpose action log — anything that isn't a full upscale attempt
+-- (Save, Compare Models, Cutout, a Settings change, ...) but is still worth
+-- having a record of when debugging a report we can't reproduce locally.
+-- `detail` is a free-form JSON blob per action rather than a wide sparse
+-- column set, since what's worth recording varies a lot by action.
+CREATE TABLE IF NOT EXISTS action_log (
+    id VARCHAR(36) PRIMARY KEY,
+    device_id VARCHAR(64) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    detail TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    app_version VARCHAR(20),
+    os_version VARCHAR(20),
+    device_model VARCHAR(50),
+    INDEX idx_device_action (device_id, action, created_at)
+);
+
 -- ---------------------------------------------------------------------------
 -- Temporary image storage (imports/exports) — expiring, not permanent
 -- ---------------------------------------------------------------------------

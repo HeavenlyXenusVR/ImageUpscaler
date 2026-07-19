@@ -75,6 +75,19 @@ enum UpscaleRunner {
             os_version: UIDevice.current.systemVersion,
             device_model: UIDevice.current.model
         )
-        UpscaleLoggingService.log(entry)
+        // Auto-uploads the source/result pair to the same expiring scratch
+        // storage the manual "Cloud Backup" button already uses (see
+        // ImportExportService) — tied together via history_id so a model's
+        // actual input/output can be inspected server-side, not just the
+        // dimensions/timing metadata above. Every upload here is still
+        // TTL'd (default 24h, see server/README.md), not permanent
+        // retention — this is a debugging aid, not a photo archive.
+        Task.detached(priority: .background) {
+            guard let historyID = await UpscaleLoggingService.log(entry) else { return }
+            try? await ImportExportService.upload(sourceImage, kind: .imports)
+            if let outputImage {
+                try? await ImportExportService.upload(outputImage, kind: .exports, historyID: historyID)
+            }
+        }
     }
 }

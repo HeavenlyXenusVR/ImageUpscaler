@@ -28,14 +28,6 @@ enum PhotoLibrarySaver {
         case contentEditingInputUnavailable
         case writeFailed(String)
 
-        /// `false` for the two intentional/expected cases above.
-        var isFailure: Bool {
-            switch self {
-            case .preserveOriginalEnabled, .noSourceAssetIdentifier: return false
-            default: return true
-            }
-        }
-
         var description: String {
             switch self {
             case .preserveOriginalEnabled:
@@ -52,6 +44,20 @@ enum PhotoLibrarySaver {
                 return message
             }
         }
+
+        /// Short, stable machine-readable key — for `ActionLoggingService`,
+        /// where `description`'s free text (and a `writeFailed` message
+        /// that can contain anything) is harder to group/filter on.
+        var logKey: String {
+            switch self {
+            case .preserveOriginalEnabled: return "preserve_original_enabled"
+            case .noSourceAssetIdentifier: return "no_source_asset_identifier"
+            case .authorizationDenied(let status): return "authorization_denied_\(status.rawValue)"
+            case .assetNotFound: return "asset_not_found"
+            case .contentEditingInputUnavailable: return "content_editing_input_unavailable"
+            case .writeFailed: return "write_failed"
+            }
+        }
     }
 
     /// What actually happened — the caller can no longer tell overwrite
@@ -60,6 +66,18 @@ enum PhotoLibrarySaver {
     enum SaveOutcome {
         case overwroteOriginal
         case addedNewAsset(reason: OverwriteFailureReason?)
+
+        /// For `ActionLoggingService`'s "save" entries — `reason` nil means
+        /// overwrite fully succeeded, not "no data", so it's kept as an
+        /// explicit key rather than omitted.
+        var logDetail: [String: Any?] {
+            switch self {
+            case .overwroteOriginal:
+                return ["outcome": "overwrote_original", "reason": nil, "reason_detail": nil]
+            case .addedNewAsset(let reason):
+                return ["outcome": "added_new_asset", "reason": reason?.logKey, "reason_detail": reason?.description]
+            }
+        }
     }
 
     private static let logger = Logger(subsystem: "com.pixelboost.ios", category: "PhotoLibrarySaver")

@@ -238,16 +238,22 @@ final class UpscalerViewModel: ObservableObject {
             : resultImage
         Task {
             do {
-                lastSaveOutcome = try await PhotoLibrarySaver.save(
+                let outcome = try await PhotoLibrarySaver.save(
                     imageToSave, overwriting: sourceAssetIdentifier,
                     format: provider.exportFormat, quality: provider.exportQuality,
                     forceNewAsset: provider.preserveOriginal
                 )
+                lastSaveOutcome = outcome
                 savedConfirmation = true
                 Haptics.success()
+                ActionLoggingService.log("save", detail: outcome.logDetail.merging(
+                    ["model_choice": provider.modelChoice.rawValue, "had_source_asset_identifier": sourceAssetIdentifier != nil],
+                    uniquingKeysWith: { _, new in new }
+                ))
             } catch {
                 errorMessage = error.localizedDescription
                 Haptics.error()
+                ActionLoggingService.log("save", detail: ["outcome": "threw", "error": error.localizedDescription])
             }
         }
     }

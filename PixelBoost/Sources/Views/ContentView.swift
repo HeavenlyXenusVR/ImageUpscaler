@@ -195,20 +195,18 @@ struct ContentView: View {
     /// string — an overwrite that silently fell back to adding a new asset
     /// (e.g. the original couldn't be fetched) used to say "added" either
     /// way, which made a failed overwrite indistinguishable from a working
-    /// one. When the fallback was an actual failure (not just Preserve
-    /// Original or a share-in with nothing to overwrite), the specific
-    /// reason is appended so it doesn't take a Mac and Console.app to find
-    /// out why. See `PhotoLibrarySaver.SaveOutcome`.
+    /// one. Always states the specific reason, not just for actual
+    /// failures — Preserve Original / no-source-identifier are "expected",
+    /// but silently hiding them just relocates the same "why didn't this
+    /// overwrite" confusion one level up. See `PhotoLibrarySaver.SaveOutcome`.
     private var saveConfirmationMessage: String {
         switch viewModel.lastSaveOutcome {
         case .overwroteOriginal:
             return "The original photo was replaced with the edited version."
         case .addedNewAsset(let reason):
             let base = "Saved as a new photo in your library (the original was left untouched)."
-            if let reason, reason.isFailure {
-                return base + " Couldn't replace the original: \(reason.description)."
-            }
-            return base
+            guard let reason else { return base }
+            return base + " Reason: \(reason.description)."
         case nil:
             return "Saved as a new photo in your library (the original was left untouched)."
         }

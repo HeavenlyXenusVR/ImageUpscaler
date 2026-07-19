@@ -17,6 +17,11 @@ not just "the code compiles."
 **Debug logging**
 - `POST /log/upscale` — records one upscale attempt (see `UpscaleLogEntry`)
 - `GET /log/history?device_id=...&limit=&offset=` — recent entries
+- `POST /log/action` — records one non-upscale action (Save, Compare Models,
+  Cutout, a Settings change, ...) with a free-form `detail` JSON string
+  (see `ActionLogEntry`)
+- `GET /log/action-history?device_id=...&action=...&limit=&offset=` —
+  recent action entries
 
 **Temporary image storage** (imports = pre-upscale, exports = post-upscale;
 both auto-expire — see "Expiry" below)

@@ -222,6 +222,72 @@ async def clear_history(request: Request, device_id: str = Query(...)):
     return {"deleted_count": deleted}
 
 
+class ActionLogEntry(BaseModel):
+    device_id: str
+    action: str
+    detail: Optional[str] = None
+    app_version: Optional[str] = None
+    os_version: Optional[str] = None
+    device_model: Optional[str] = None
+
+
+@app.post("/log/action")
+async def log_action(entry: ActionLogEntry, request: Request):
+    await check_auth(request)
+    pool = await get_pool()
+    entry_id = uuid.uuid4().hex
+    async with pool.acquire() as conn:
+        async with conn.cursor() as cur:
+            await cur.execute(
+                """
+                INSERT INTO action_log (
+                    id, device_id, action, detail, app_version, os_version, device_model
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    entry_id, entry.device_id, entry.action, entry.detail,
+                    entry.app_version, entry.os_version, entry.device_model,
+                ),
+            )
+    return {"id": entry_id}
+
+
+@app.get("/log/action-history")
+async def get_action_history(
+    request: Request,
+    device_id: Optional[str] = Query(None, description="Filter to one device's history"),
+    action: Optional[str] = Query(None, description="Filter to one action name"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    await check_auth(request)
+    pool = await get_pool()
+    clauses = []
+    params: list = []
+    if device_id:
+        clauses.append("device_id = %s")
+        params.append(device_id)
+    if action:
+        clauses.append("action = %s")
+        params.append(action)
+    where = ("WHERE " + " AND ".join(clauses)) if clauses else ""
+    params += [limit, offset]
+    async with pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                f"""
+                SELECT id, device_id, action, detail, created_at, app_version, os_version, device_model
+                FROM action_log
+                {where}
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+                """,
+                tuple(params),
+            )
+            rows = await cur.fetchall()
+    return {"entries": rows}
+
+
 @app.get("/log/stats")
 async def get_stats(request: Request, device_id: str = Query(...)):
     """Aggregates over the FULL history for this device, not the capped/
