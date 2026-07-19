@@ -21,7 +21,15 @@ struct ContentView: View {
 
                     imagePreview
 
-                    PhotosPicker(selection: $pickerItem, matching: .images) {
+                    // photoLibrary: .shared() is the initializer's documented
+                    // default, but omitting it explicitly leaves
+                    // PhotosPickerItem.itemIdentifier nil for every pick,
+                    // regardless of Photos authorization — a known
+                    // SwiftUI/PhotosUI quirk, not the default actually being
+                    // applied. Passing it explicitly is required for
+                    // PhotoLibrarySaver's overwrite path to ever have an
+                    // identifier to work with.
+                    PhotosPicker(selection: $pickerItem, matching: .images, photoLibrary: .shared()) {
                         Label("Choose Photo", systemImage: "photo.on.rectangle")
                     }
                     .buttonStyle(.pbGhost)

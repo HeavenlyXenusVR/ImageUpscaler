@@ -17,7 +17,14 @@ struct BatchUpscaleView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 PBCard {
-                    PhotosPicker(selection: $pickerItems, maxSelectionCount: 20, matching: .images) {
+                    // photoLibrary: .shared() explicitly — see ContentView's
+                    // PhotosPicker for why omitting it (even though it's the
+                    // documented default) leaves itemIdentifier nil for
+                    // every item, silently defeating overwrite-in-place for
+                    // every photo in the batch.
+                    PhotosPicker(
+                        selection: $pickerItems, maxSelectionCount: 20, matching: .images, photoLibrary: .shared()
+                    ) {
                         PBCardRow(icon: "photo.on.rectangle.angled", label: "Choose Photos")
                     }
                     .disabled(viewModel.isRunning)
