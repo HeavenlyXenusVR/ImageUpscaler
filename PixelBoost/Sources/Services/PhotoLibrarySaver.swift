@@ -1,4 +1,5 @@
 import ImageIO
+import os
 import Photos
 import UIKit
 
@@ -12,18 +13,30 @@ import UIKit
 /// deleted/moved since picking, or the user declines full library access
 /// for the overwrite path — so a save never just fails outright over this.
 enum PhotoLibrarySaver {
+    /// What actually happened — the caller can no longer tell overwrite
+    /// success from a silent fallback just from "did this throw or not",
+    /// since both `save` outcomes complete without throwing.
+    enum SaveOutcome {
+        case overwroteOriginal
+        case addedNewAsset
+    }
+
+    private static let logger = Logger(subsystem: "com.pixelboost.ios", category: "PhotoLibrarySaver")
+
     /// - Parameter forceNewAsset: skips the overwrite path entirely and
     ///   always adds a new asset — the "Preserve Original" Settings toggle,
     ///   for anyone who wants the pre-overwrite-default behavior back.
+    @discardableResult
     static func save(
         _ image: UIImage, overwriting assetIdentifier: String?, format: ExportFormat, quality: Double,
         forceNewAsset: Bool = false
-    ) async throws {
+    ) async throws -> SaveOutcome {
         if !forceNewAsset, let assetIdentifier,
            await overwriteOriginalAsset(assetIdentifier, with: image, format: format, quality: quality) {
-            return
+            return .overwroteOriginal
         }
         try await saveAsNewAsset(image, format: format, quality: quality)
+        return .addedNewAsset
     }
 
     /// Always adds a new asset rather than overwriting — used both as
@@ -54,14 +67,21 @@ enum PhotoLibrarySaver {
         _ localIdentifier: String, with image: UIImage, format: ExportFormat, quality: Double
     ) async -> Bool {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-        guard status == .authorized || status == .limited else { return false }
+        guard status == .authorized || status == .limited else {
+            logger.error("Overwrite skipped: readWrite authorization status is \(status.rawValue, privacy: .public)")
+            return false
+        }
 
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil).firstObject else {
+            logger.error("Overwrite skipped: no PHAsset found for identifier (asset moved/deleted, or not visible under Limited Library access)")
             return false
         }
 
         let input: PHContentEditingInput? = await withCheckedContinuation { continuation in
-            asset.requestContentEditingInput(with: nil) { input, _ in
+            asset.requestContentEditingInput(with: nil) { input, info in
+                if input == nil {
+                    logger.error("Overwrite skipped: requestContentEditingInput returned nil, info: \(String(describing: info), privacy: .public)")
+                }
                 continuation.resume(returning: input)
             }
         }
@@ -76,6 +96,7 @@ enum PhotoLibrarySaver {
             }
             return true
         } catch {
+            logger.error("Overwrite failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }

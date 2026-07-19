@@ -146,7 +146,7 @@ struct ContentView: View {
             .alert("Saved", isPresented: $viewModel.savedConfirmation) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("The upscaled image was added to your Photos library.")
+                Text(saveConfirmationMessage)
             }
             .alert("Cloud Backup", isPresented: Binding(
                 get: { backupAlertMessage != nil },
@@ -189,6 +189,20 @@ struct ContentView: View {
     /// is what actually happens either way.
     private var isCompareMode: Bool {
         provider.modelChoice == .auto && provider.quality != .fast
+    }
+
+    /// Reflects what `saveResultToPhotos()` actually did, not a fixed
+    /// string — an overwrite that silently fell back to adding a new asset
+    /// (e.g. the original couldn't be fetched) used to say "added" either
+    /// way, which made a failed overwrite indistinguishable from a working
+    /// one. See `PhotoLibrarySaver.SaveOutcome`.
+    private var saveConfirmationMessage: String {
+        switch viewModel.lastSaveOutcome {
+        case .overwroteOriginal:
+            return "The original photo was replaced with the edited version."
+        case .addedNewAsset, nil:
+            return "Saved as a new photo in your library (the original was left untouched)."
+        }
     }
 
     /// Only one tool at a time — Upscale/Compare Models and Cutout both

@@ -26,6 +26,11 @@ final class UpscalerViewModel: ObservableObject {
     @Published var progress: Double = 0
     @Published var errorMessage: String?
     @Published var savedConfirmation = false
+    /// What the most recent `saveResultToPhotos()` actually did — read by
+    /// `ContentView`'s confirmation alert so it can say which one happened
+    /// instead of a fixed message that's wrong half the time. See
+    /// `PhotoLibrarySaver.SaveOutcome`.
+    @Published var lastSaveOutcome: PhotoLibrarySaver.SaveOutcome?
 
     /// Populated by `compareModels()` — every bundled model's full result
     /// for the current photo, for the user to look through and pick from.
@@ -233,7 +238,7 @@ final class UpscalerViewModel: ObservableObject {
             : resultImage
         Task {
             do {
-                try await PhotoLibrarySaver.save(
+                lastSaveOutcome = try await PhotoLibrarySaver.save(
                     imageToSave, overwriting: sourceAssetIdentifier,
                     format: provider.exportFormat, quality: provider.exportQuality,
                     forceNewAsset: provider.preserveOriginal
