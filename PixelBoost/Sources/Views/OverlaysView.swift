@@ -27,19 +27,20 @@ struct OverlaysView: View {
             Group {
                 if let baseImage {
                     VStack(spacing: 16) {
-                        GeometryReader { geo in
-                            ZStack {
-                                Image(uiImage: baseImage)
-                                    .resizable()
-                                    .frame(width: geo.size.width, height: geo.size.height)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        PBImageFrame {
+                            GeometryReader { geo in
+                                ZStack {
+                                    Image(uiImage: baseImage)
+                                        .resizable()
+                                        .frame(width: geo.size.width, height: geo.size.height)
 
-                                ForEach(overlays) { overlay in
-                                    overlayView(overlay, containerSize: geo.size)
+                                    ForEach(overlays) { overlay in
+                                        overlayView(overlay, containerSize: geo.size)
+                                    }
                                 }
+                                .onAppear { containerSize = geo.size }
+                                .onChange(of: geo.size) { _, newSize in containerSize = newSize }
                             }
-                            .onAppear { containerSize = geo.size }
-                            .onChange(of: geo.size) { _, newSize in containerSize = newSize }
                         }
                         .aspectRatio(baseImage.size, contentMode: .fit)
                         .padding(.horizontal, 16)
@@ -179,16 +180,7 @@ struct OverlaysView: View {
     ]
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "textformat")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "textformat", message: "Choose a photo on the Upscale tab first.")
     }
 }
 

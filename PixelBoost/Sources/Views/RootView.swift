@@ -12,6 +12,7 @@ struct RootView: View {
     @EnvironmentObject private var viewModel: UpscalerViewModel
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: AppTab = .home
+    @State private var showingToolsDrawer = false
 
     var body: some View {
         ZStack {
@@ -36,6 +37,16 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active { consumeSharedPhotoIfNeeded() }
+        }
+        .sheet(isPresented: $showingToolsDrawer) {
+            ToolsDrawerView(selectedTab: selectedTab) { tab in
+                Haptics.lightImpact()
+                selectedTab = tab
+                showingToolsDrawer = false
+            }
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .preferredColorScheme(.dark)
         }
     }
 
@@ -72,16 +83,22 @@ struct RootView: View {
         }
     }
 
+    /// 5 fixed primary tabs plus a center "Tools" launcher for the other
+    /// 10 (`AppTab.moreTabs`, via `showingToolsDrawer`'s sheet) — replaces
+    /// the old horizontally-scrolling 15-icon strip, which crammed every
+    /// destination into one undifferentiated row.
     private var bottomBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(AppTab.allCases) { tab in
-                    tabButton(tab)
-                }
+        HStack(spacing: 0) {
+            ForEach(AppTab.primaryTabs.prefix(2)) { tab in
+                tabButton(tab).frame(maxWidth: .infinity)
             }
-            .padding(.horizontal, 8)
+            toolsButton.frame(maxWidth: .infinity)
+            ForEach(AppTab.primaryTabs.dropFirst(2)) { tab in
+                tabButton(tab).frame(maxWidth: .infinity)
+            }
         }
-        .frame(height: 60)
+        .padding(.horizontal, 4)
+        .frame(height: 64)
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
             Rectangle().fill(PBColor.line).frame(height: 1)
@@ -102,10 +119,87 @@ struct RootView: View {
                     .lineLimit(1)
             }
             .foregroundStyle(isSelected ? PBColor.accent : PBColor.inkDim)
-            .frame(width: 64)
             .padding(.vertical, 6)
         }
         .buttonStyle(.plain)
+    }
+
+    /// Distinct raised-circle treatment so the launcher for the other 10
+    /// tabs reads as its own thing, not a 6th identical icon — and lights
+    /// up in accent when the currently active tab lives behind it, so
+    /// there's still a sense of "where am I" even though that tab isn't
+    /// individually represented in the bar.
+    private var toolsButton: some View {
+        let isMoreTabActive = !selectedTab.isPrimary
+        return Button {
+            Haptics.lightImpact()
+            showingToolsDrawer = true
+        } label: {
+            VStack(spacing: 2) {
+                ZStack {
+                    Circle()
+                        .fill(isMoreTabActive ? AnyShapeStyle(PBColor.accentGradient) : AnyShapeStyle(PBColor.surface2))
+                        .frame(width: 42, height: 42)
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
+                        .shadow(color: isMoreTabActive ? PBColor.accent.opacity(0.5) : .clear, radius: 10, x: 0, y: 4)
+                    Image(systemName: "square.grid.2x2.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(isMoreTabActive ? .white : PBColor.inkDim)
+                }
+                .offset(y: -8)
+                Text(isMoreTabActive ? selectedTab.title : "Tools")
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(isMoreTabActive ? PBColor.accent : PBColor.inkDim)
+                    .lineLimit(1)
+                    .offset(y: -4)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// The "Tools" drawer sheet — a grid of every non-primary tab
+/// (`AppTab.moreTabs`), tap to select and dismiss.
+private struct ToolsDrawerView: View {
+    let selectedTab: AppTab
+    let onSelect: (AppTab) -> Void
+
+    private let columns = [GridItem(.adaptive(minimum: 84), spacing: 14)]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: columns, spacing: 16) {
+                    ForEach(AppTab.moreTabs) { tab in
+                        let isSelected = tab == selectedTab
+                        Button { onSelect(tab) } label: {
+                            VStack(spacing: 10) {
+                                Image(systemName: tab.systemImage)
+                                    .font(.system(size: 20, weight: .semibold))
+                                    .foregroundStyle(isSelected ? PBColor.accent : PBColor.ink)
+                                    .frame(width: 56, height: 56)
+                                    .pbGlassSurface(cornerRadius: 18)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                            .strokeBorder(isSelected ? PBColor.accent : .clear, lineWidth: 1.5)
+                                    )
+                                Text(tab.title)
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                    .foregroundStyle(PBColor.inkDim)
+                                    .lineLimit(1)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(20)
+            }
+            .background(PBColor.background.ignoresSafeArea())
+            .navigationTitle("Tools")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(PBColor.background, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+        }
     }
 }
 

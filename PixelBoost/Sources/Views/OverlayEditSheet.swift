@@ -126,15 +126,17 @@ struct OverlayEditSheet: View {
         return Button {
             font = option
         } label: {
-            Text("Aa")
+            let text = Text("Aa")
                 .font(option.font(size: 20))
-                .foregroundStyle(isSelected ? .white : PBColor.inkDim)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(
-                    isSelected ? AnyShapeStyle(PBColor.accentGradient) : AnyShapeStyle(PBColor.surface2),
-                    in: Capsule()
-                )
+            if isSelected {
+                text.pbAccentGlow()
+            } else {
+                text
+                    .foregroundStyle(PBColor.inkDim)
+                    .background(PBColor.surface2, in: Capsule())
+            }
         }
         .buttonStyle(.plain)
     }

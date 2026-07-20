@@ -95,7 +95,7 @@ private struct OnboardingPageView: View {
                     .foregroundStyle(.white)
             }
             Text(page.title)
-                .font(.system(size: 23, weight: .heavy))
+                .pbFont(.display)
                 .foregroundStyle(PBColor.ink)
             Text(page.message)
                 .font(.system(size: 14.5))

@@ -24,37 +24,38 @@ struct InpaintView: View {
             Group {
                 if let baseImage {
                     VStack(spacing: 16) {
-                        GeometryReader { geo in
-                            ZStack {
-                                Image(uiImage: baseImage)
-                                    .resizable()
-                                    .frame(width: geo.size.width, height: geo.size.height)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        PBImageFrame {
+                            GeometryReader { geo in
+                                ZStack {
+                                    Image(uiImage: baseImage)
+                                        .resizable()
+                                        .frame(width: geo.size.width, height: geo.size.height)
 
-                                Canvas { context, _ in
-                                    for stroke in strokes {
-                                        drawStroke(stroke.points, brushSize: stroke.brushSize, in: &context)
-                                    }
-                                    if !currentPoints.isEmpty {
-                                        drawStroke(currentPoints, brushSize: brushSize, in: &context)
-                                    }
-                                }
-                                .allowsHitTesting(false)
-                            }
-                            .contentShape(Rectangle())
-                            .allowsHitTesting(!isProcessing)
-                            .gesture(
-                                DragGesture(minimumDistance: 0)
-                                    .onChanged { value in currentPoints.append(value.location) }
-                                    .onEnded { _ in
-                                        if !currentPoints.isEmpty {
-                                            strokes.append(BrushStroke(points: currentPoints, brushSize: brushSize))
+                                    Canvas { context, _ in
+                                        for stroke in strokes {
+                                            drawStroke(stroke.points, brushSize: stroke.brushSize, in: &context)
                                         }
-                                        currentPoints = []
+                                        if !currentPoints.isEmpty {
+                                            drawStroke(currentPoints, brushSize: brushSize, in: &context)
+                                        }
                                     }
-                            )
-                            .onAppear { containerSize = geo.size }
-                            .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                                    .allowsHitTesting(false)
+                                }
+                                .contentShape(Rectangle())
+                                .allowsHitTesting(!isProcessing)
+                                .gesture(
+                                    DragGesture(minimumDistance: 0)
+                                        .onChanged { value in currentPoints.append(value.location) }
+                                        .onEnded { _ in
+                                            if !currentPoints.isEmpty {
+                                                strokes.append(BrushStroke(points: currentPoints, brushSize: brushSize))
+                                            }
+                                            currentPoints = []
+                                        }
+                                )
+                                .onAppear { containerSize = geo.size }
+                                .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                            }
                         }
                         .aspectRatio(baseImage.size, contentMode: .fit)
                         .padding(.horizontal, 16)
@@ -104,14 +105,14 @@ struct InpaintView: View {
                             HStack(spacing: 8) {
                                 ProgressView().tint(PBColor.accent)
                                 Text("Filling in the marked area…")
-                                    .font(.system(size: 13))
+                                    .pbFont(.body)
                                     .foregroundStyle(PBColor.inkDim)
                             }
                         }
 
                         if let errorMessage {
                             Text(errorMessage)
-                                .font(.system(size: 12.5))
+                                .pbFont(.caption)
                                 .foregroundStyle(PBColor.bad)
                                 .multilineTextAlignment(.center)
                         }
@@ -191,16 +192,7 @@ struct InpaintView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "eraser")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "eraser", message: "Choose a photo on the Upscale tab first.")
     }
 }
 

@@ -25,23 +25,24 @@ struct CropRotateView: View {
             Group {
                 if let workingImage {
                     VStack(spacing: 20) {
-                        GeometryReader { geo in
-                            ZStack {
-                                Image(uiImage: workingImage)
-                                    .resizable()
-                                    .frame(width: geo.size.width, height: geo.size.height)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        PBImageFrame {
+                            GeometryReader { geo in
+                                ZStack {
+                                    Image(uiImage: workingImage)
+                                        .resizable()
+                                        .frame(width: geo.size.width, height: geo.size.height)
 
-                                if selectedRatio != nil {
-                                    cropOverlay(containerSize: geo.size)
+                                    if selectedRatio != nil {
+                                        cropOverlay(containerSize: geo.size)
+                                    }
                                 }
-                            }
-                            .onAppear { containerSize = geo.size }
-                            .onChange(of: geo.size) { _, newSize in containerSize = newSize }
-                            .onChange(of: selectedRatio) { _, newRatio in
-                                if let newRatio {
-                                    cropRect = Self.maxRect(for: newRatio.value, in: geo.size)
-                                    hasChanges = true
+                                .onAppear { containerSize = geo.size }
+                                .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                                .onChange(of: selectedRatio) { _, newRatio in
+                                    if let newRatio {
+                                        cropRect = Self.maxRect(for: newRatio.value, in: geo.size)
+                                        hasChanges = true
+                                    }
                                 }
                             }
                         }
@@ -127,15 +128,17 @@ struct CropRotateView: View {
 
     private func ratioChip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
+            let text = Text(title)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(isSelected ? .white : PBColor.inkDim)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(
-                    isSelected ? AnyShapeStyle(PBColor.accentGradient) : AnyShapeStyle(PBColor.surface2),
-                    in: Capsule()
-                )
+            if isSelected {
+                text.pbAccentGlow()
+            } else {
+                text
+                    .foregroundStyle(PBColor.inkDim)
+                    .background(PBColor.surface2, in: Capsule())
+            }
         }
         .buttonStyle(.plain)
     }
@@ -143,7 +146,7 @@ struct CropRotateView: View {
     private func cropOverlay(containerSize: CGSize) -> some View {
         Rectangle()
             .fill(PBColor.accent.opacity(0.15))
-            .overlay(Rectangle().strokeBorder(PBColor.accentGradient, lineWidth: 2))
+            .overlay(Rectangle().strokeBorder(PBColor.accent, lineWidth: 2))
             .frame(width: cropRect.width, height: cropRect.height)
             .position(x: cropRect.midX, y: cropRect.midY)
             .contentShape(Rectangle())
@@ -202,16 +205,7 @@ struct CropRotateView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "crop")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "crop", message: "Choose a photo on the Upscale tab first.")
     }
 }
 

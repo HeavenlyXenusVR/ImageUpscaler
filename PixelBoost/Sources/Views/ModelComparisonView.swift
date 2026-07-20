@@ -22,7 +22,7 @@ struct ModelComparisonView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Every bundled model ran on your full photo — tap one to view it full-screen, then use whichever looks best to you.")
-                        .font(.system(size: 13))
+                        .pbFont(.body)
                         .foregroundStyle(PBColor.inkDim)
                         .padding(.horizontal, 2)
 
@@ -86,22 +86,23 @@ private struct ComparisonCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Image(uiImage: result.image)
-                .resizable()
-                .scaledToFill()
-                .frame(height: 150)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(alignment: .topTrailing) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(6)
-                        .background(.black.opacity(0.45), in: Circle())
-                        .padding(6)
-                }
-                .onTapGesture(perform: onTapImage)
+            PBImageFrame(cornerRadius: 14) {
+                Image(uiImage: result.image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 150)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+                    .overlay(alignment: .topTrailing) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(6)
+                            .background(.black.opacity(0.45), in: Circle())
+                            .padding(6)
+                    }
+                    .onTapGesture(perform: onTapImage)
+            }
 
             HStack(spacing: 6) {
                 Text(result.choice.displayName)
@@ -112,14 +113,13 @@ private struct ComparisonCard: View {
                     Text("SHARPEST")
                         .font(.system(size: 8.5, weight: .heavy))
                         .tracking(0.2)
-                        .foregroundStyle(.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(PBColor.accentGradient, in: RoundedRectangle(cornerRadius: 4))
+                        .pbAccentGlow(cornerRadius: 4)
                 }
             }
             Text("Sharpness \(Int(result.sharpnessScore))")
-                .font(.system(size: 10.5))
+                .pbFont(.caption)
                 .foregroundStyle(PBColor.inkFaint)
 
             Button(action: onUseThis) {
@@ -128,10 +128,11 @@ private struct ComparisonCard: View {
             .buttonStyle(.pbGhost)
         }
         .padding(10)
-        .background(PBColor.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .pbGlassSurface(cornerRadius: 16)
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(isSharpest ? AnyShapeStyle(PBColor.accentGradient) : AnyShapeStyle(PBColor.line), lineWidth: isSharpest ? 1.5 : 1)
+                .strokeBorder(isSharpest ? PBColor.accent : .clear, lineWidth: 1.5)
         )
+        .shadow(color: isSharpest ? PBColor.accent.opacity(0.3) : .clear, radius: 10, x: 0, y: 0)
     }
 }

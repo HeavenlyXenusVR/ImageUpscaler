@@ -19,16 +19,17 @@ struct AutoEnhanceView: View {
                 if let baseImage {
                     ScrollView {
                         VStack(spacing: 20) {
-                            Image(uiImage: enhancedPreview ?? baseImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 340)
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            PBImageFrame {
+                                Image(uiImage: enhancedPreview ?? baseImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 340)
+                            }
 
                             Text(enhancedPreview == nil
                                  ? "Automatically balances exposure, color, and contrast — the same auto-fix analysis Snapseed and Photoshop Express use."
                                  : "Preview of the automatic fix.")
-                                .font(.system(size: 13))
+                                .pbFont(.body)
                                 .foregroundStyle(PBColor.inkDim)
                                 .multilineTextAlignment(.center)
 
@@ -123,16 +124,7 @@ struct AutoEnhanceView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "wand.and.rays")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "wand.and.rays", message: "Choose a photo on the Upscale tab first.")
     }
 
     private static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

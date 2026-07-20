@@ -28,12 +28,12 @@ struct CloneStampView: View {
             Group {
                 if let baseImage {
                     VStack(spacing: 16) {
+                        PBImageFrame {
                         GeometryReader { geo in
                             ZStack {
                                 Image(uiImage: baseImage)
                                     .resizable()
                                     .frame(width: geo.size.width, height: geo.size.height)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
                                 Canvas { context, _ in
                                     for stroke in strokes {
@@ -74,12 +74,13 @@ struct CloneStampView: View {
                             .onAppear { containerSize = geo.size }
                             .onChange(of: geo.size) { _, newSize in containerSize = newSize }
                         }
+                        }
                         .aspectRatio(baseImage.size, contentMode: .fit)
                         .padding(.horizontal, 16)
                         .padding(.top, 8)
 
                         Text(instructions)
-                            .font(.system(size: 13))
+                            .pbFont(.body)
                             .foregroundStyle(PBColor.inkDim)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 20)
@@ -138,14 +139,14 @@ struct CloneStampView: View {
                             HStack(spacing: 8) {
                                 ProgressView().tint(PBColor.accent)
                                 Text("Cloning the marked area…")
-                                    .font(.system(size: 13))
+                                    .pbFont(.body)
                                     .foregroundStyle(PBColor.inkDim)
                             }
                         }
 
                         if let errorMessage {
                             Text(errorMessage)
-                                .font(.system(size: 12.5))
+                                .pbFont(.caption)
                                 .foregroundStyle(PBColor.bad)
                                 .multilineTextAlignment(.center)
                         }
@@ -256,16 +257,7 @@ struct CloneStampView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "stamp")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "stamp", message: "Choose a photo on the Upscale tab first.")
     }
 }
 

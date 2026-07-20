@@ -72,23 +72,8 @@ struct HistoryView: View {
     }
 
     private func emptyState(systemImage: String, title: String?, message: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 34))
-                .foregroundStyle(PBColor.inkFaint)
-            if let title {
-                Text(title)
-                    .font(.system(size: 15.5, weight: .bold))
-                    .foregroundStyle(PBColor.ink)
-            }
-            Text(message)
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(PBColor.background.ignoresSafeArea())
+        PBEmptyState(icon: systemImage, title: title, message: message)
+            .background(PBColor.background.ignoresSafeArea())
     }
 
     private func load() async {
@@ -153,11 +138,7 @@ private struct StatsStrip: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(PBColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(PBColor.line, lineWidth: 1)
-        )
+        .pbGlassSurface(cornerRadius: 18)
     }
 
     private var successRateText: String {
@@ -211,11 +192,7 @@ private struct HistoryCard: View {
             }
         }
         .padding(12)
-        .background(PBColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(PBColor.line, lineWidth: 1)
-        )
+        .pbGlassSurface(cornerRadius: 18)
     }
 
     private var techniqueLabel: String {

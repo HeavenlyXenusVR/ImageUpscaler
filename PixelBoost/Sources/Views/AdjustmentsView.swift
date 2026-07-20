@@ -19,11 +19,12 @@ struct AdjustmentsView: View {
                 if let previewImage {
                     ScrollView {
                         VStack(spacing: 24) {
-                            Image(uiImage: previewImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxHeight: 340)
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            PBImageFrame {
+                                Image(uiImage: previewImage)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxHeight: 340)
+                            }
 
                             VStack(spacing: 18) {
                                 HStack {
@@ -122,16 +123,7 @@ struct AdjustmentsView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "slider.horizontal.3", message: "Choose a photo on the Upscale tab first.")
     }
 
     private static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

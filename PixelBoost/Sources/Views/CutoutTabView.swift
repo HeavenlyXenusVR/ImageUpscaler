@@ -25,14 +25,15 @@ struct CutoutTabView: View {
             ScrollView {
                 VStack(spacing: 20) {
                     if let currentImage {
-                        Image(uiImage: fillPreview ?? currentImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 340)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        PBImageFrame {
+                            Image(uiImage: fillPreview ?? currentImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 340)
+                        }
 
                         Text("Cuts the main subject out of your photo with a transparent background, using on-device subject detection — the same technology behind Photos' \"Lift Subject.\"")
-                            .font(.system(size: 13))
+                            .pbFont(.body)
                             .foregroundStyle(PBColor.inkDim)
                             .multilineTextAlignment(.center)
 
@@ -49,14 +50,14 @@ struct CutoutTabView: View {
                             HStack(spacing: 8) {
                                 ProgressView().tint(PBColor.accent)
                                 Text("Finding the subject to cut out…")
-                                    .font(.system(size: 13))
+                                    .pbFont(.body)
                                     .foregroundStyle(PBColor.inkDim)
                             }
                         }
 
                         if let errorMessage = viewModel.errorMessage {
                             Text(errorMessage)
-                                .font(.system(size: 12.5))
+                                .pbFont(.caption)
                                 .foregroundStyle(PBColor.bad)
                                 .multilineTextAlignment(.center)
                         }
@@ -186,17 +187,8 @@ struct CutoutTabView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "scissors")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 220)
+        PBEmptyState(icon: "scissors", message: "Choose a photo on the Upscale tab first.")
+            .frame(height: 220)
     }
 
     private static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

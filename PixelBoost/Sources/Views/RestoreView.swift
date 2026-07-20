@@ -23,38 +23,38 @@ struct RestoreView: View {
                 if let previewImage {
                     ScrollView {
                         VStack(spacing: 24) {
-                            ZStack {
-                                Image(uiImage: previewImage)
-                                    .resizable()
-                                    .scaledToFit()
-                                    .frame(maxHeight: 340)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                if isProcessingPreview {
-                                    ProgressView().tint(PBColor.accent)
+                            PBImageFrame {
+                                ZStack {
+                                    Image(uiImage: previewImage)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(maxHeight: 340)
+                                    if isProcessingPreview {
+                                        ProgressView().tint(PBColor.accent)
+                                    }
                                 }
                             }
 
                             VStack(alignment: .leading, spacing: 10) {
                                 Text("Denoise")
-                                    .font(.system(size: 12, weight: .bold))
-                                    .tracking(0.4)
+                                    .pbFont(.eyebrow)
                                     .foregroundStyle(PBColor.inkFaint)
                                 Slider(value: $denoiseAmount, in: 0...1)
                                     .tint(PBColor.accent)
                                 Text("Smooths grain and sensor noise while trying to hold onto fine detail.")
-                                    .font(.system(size: 11.5))
+                                    .pbFont(.caption)
                                     .foregroundStyle(PBColor.inkFaint)
                             }
 
                             VStack(alignment: .leading, spacing: 10) {
                                 Toggle(isOn: $faceRestoreEnabled) {
                                     Text("Restore Faces")
-                                        .font(.system(size: 13, weight: .semibold))
+                                        .pbFont(.body)
                                         .foregroundStyle(PBColor.ink)
                                 }
                                 .tint(PBColor.accent)
                                 Text("Sharpens detail just around detected faces — a classical boost, not a generative model.")
-                                    .font(.system(size: 11.5))
+                                    .pbFont(.caption)
                                     .foregroundStyle(PBColor.inkFaint)
                                 if noFacesDetected {
                                     Text("No faces detected in this photo.")
@@ -169,16 +169,7 @@ struct RestoreView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "bandage")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "bandage", message: "Choose a photo on the Upscale tab first.")
     }
 
     private static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

@@ -97,11 +97,7 @@ private struct BatchItemCard: View {
             }
         }
         .padding(11)
-        .background(PBColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(PBColor.line, lineWidth: 1)
-        )
+        .pbGlassSurface(cornerRadius: 18)
     }
 
     @ViewBuilder

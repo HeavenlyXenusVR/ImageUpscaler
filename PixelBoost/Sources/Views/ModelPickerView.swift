@@ -61,27 +61,24 @@ private struct ModelCard: View {
                         badge
                     }
                     Text(subtitle)
-                        .font(.system(size: 12))
+                        .pbFont(.caption)
                         .foregroundStyle(PBColor.inkDim)
                 }
                 Spacer()
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
                         .frame(width: 20, height: 20)
-                        .background(PBColor.accentGradient, in: Circle())
+                        .pbAccentGlow(cornerRadius: 999)
                 }
             }
             .padding(13)
-            .background(PBColor.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .pbGlassSurface(cornerRadius: 16)
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? AnyShapeStyle(PBColor.accentGradient) : AnyShapeStyle(PBColor.line),
-                        lineWidth: isSelected ? 1.5 : 1
-                    )
+                    .strokeBorder(isSelected ? PBColor.accent : .clear, lineWidth: 1.5)
             )
+            .shadow(color: isSelected ? PBColor.accent.opacity(0.3) : .clear, radius: 10, x: 0, y: 0)
             .opacity(choice == .auto || choice.isBundled ? 1 : 0.55)
         }
         .buttonStyle(.plain)
@@ -93,10 +90,9 @@ private struct ModelCard: View {
             Text("RECOMMENDED")
                 .font(.system(size: 9.5, weight: .heavy))
                 .tracking(0.3)
-                .foregroundStyle(.white)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
-                .background(PBColor.accentGradient, in: RoundedRectangle(cornerRadius: 5))
+                .pbAccentGlow(cornerRadius: 5)
         } else if !choice.isBundled {
             Text("NOT BUNDLED")
                 .font(.system(size: 9.5, weight: .bold))

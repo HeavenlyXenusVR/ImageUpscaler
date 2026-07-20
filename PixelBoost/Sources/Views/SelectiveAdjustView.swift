@@ -28,37 +28,38 @@ struct SelectiveAdjustView: View {
                 if let baseImage {
                     ScrollView {
                         VStack(spacing: 16) {
-                            GeometryReader { geo in
-                                ZStack {
-                                    Image(uiImage: previewImage ?? baseImage)
-                                        .resizable()
-                                        .frame(width: geo.size.width, height: geo.size.height)
-                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            PBImageFrame {
+                                GeometryReader { geo in
+                                    ZStack {
+                                        Image(uiImage: previewImage ?? baseImage)
+                                            .resizable()
+                                            .frame(width: geo.size.width, height: geo.size.height)
 
-                                    Canvas { context, _ in
-                                        for stroke in strokes {
-                                            drawStroke(stroke.points, brushSize: stroke.brushSize, in: &context)
-                                        }
-                                        if !currentPoints.isEmpty {
-                                            drawStroke(currentPoints, brushSize: brushSize, in: &context)
-                                        }
-                                    }
-                                    .allowsHitTesting(false)
-                                }
-                                .contentShape(Rectangle())
-                                .gesture(
-                                    DragGesture(minimumDistance: 0)
-                                        .onChanged { value in currentPoints.append(value.location) }
-                                        .onEnded { _ in
-                                            if !currentPoints.isEmpty {
-                                                strokes.append(BrushStroke(points: currentPoints, brushSize: brushSize))
-                                                updatePreview()
+                                        Canvas { context, _ in
+                                            for stroke in strokes {
+                                                drawStroke(stroke.points, brushSize: stroke.brushSize, in: &context)
                                             }
-                                            currentPoints = []
+                                            if !currentPoints.isEmpty {
+                                                drawStroke(currentPoints, brushSize: brushSize, in: &context)
+                                            }
                                         }
-                                )
-                                .onAppear { containerSize = geo.size }
-                                .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                                        .allowsHitTesting(false)
+                                    }
+                                    .contentShape(Rectangle())
+                                    .gesture(
+                                        DragGesture(minimumDistance: 0)
+                                            .onChanged { value in currentPoints.append(value.location) }
+                                            .onEnded { _ in
+                                                if !currentPoints.isEmpty {
+                                                    strokes.append(BrushStroke(points: currentPoints, brushSize: brushSize))
+                                                    updatePreview()
+                                                }
+                                                currentPoints = []
+                                            }
+                                    )
+                                    .onAppear { containerSize = geo.size }
+                                    .onChange(of: geo.size) { _, newSize in containerSize = newSize }
+                                }
                             }
                             .aspectRatio(baseImage.size, contentMode: .fit)
                             .padding(.horizontal, 16)
@@ -222,16 +223,7 @@ struct SelectiveAdjustView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "paintbrush.pointed")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "paintbrush.pointed", message: "Choose a photo on the Upscale tab first.")
     }
 
     private static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

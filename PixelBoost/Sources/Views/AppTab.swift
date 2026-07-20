@@ -1,13 +1,26 @@
 import Foundation
 
-/// Every top-level destination in the app, in bottom-bar order. There are
-/// more than the ~5 iOS puts in a native `TabView` before collapsing the
-/// rest into an auto-generated "More" list, so `RootView` builds its own
-/// horizontally scrollable bar instead of using `TabView`.
+/// Every top-level destination in the app. There are more than the ~5 iOS
+/// puts in a native `TabView` before collapsing the rest into an
+/// auto-generated "More" list, so `RootView` builds its own bar instead of
+/// using `TabView`: 5 always-visible primary tabs (`primaryTabs`) plus a
+/// center "Tools" button opening a drawer sheet for the rest (`moreTabs`).
 enum AppTab: String, CaseIterable, Identifiable {
     case home, cutout, enhance, adjust, selective, crop, filters, overlays, erase, restore, clone, batch, cloud, history, settings
 
     var id: String { rawValue }
+
+    /// The 5 tabs always visible in the bottom bar; everything else lives
+    /// behind the center "Tools" button's drawer sheet (see `RootView`).
+    /// Still just a `Bool` split of the same 15 cases, not a separate type —
+    /// every tab keeps driving the same always-mounted `ZStack` in
+    /// `RootView` regardless of which bucket it's in, so changing *how* a
+    /// tab is reached never touches the state-preservation behavior that
+    /// `ZStack` exists for.
+    static let primaryTabs: [AppTab] = [.home, .adjust, .filters, .batch, .settings]
+    static let moreTabs: [AppTab] = allCases.filter { !primaryTabs.contains($0) }
+
+    var isPrimary: Bool { Self.primaryTabs.contains(self) }
 
     var title: String {
         switch self {

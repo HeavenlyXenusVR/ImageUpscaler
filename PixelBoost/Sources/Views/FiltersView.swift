@@ -19,13 +19,14 @@ struct FiltersView: View {
             Group {
                 if let previewImage {
                     VStack(spacing: 20) {
-                        Image(uiImage: previewImage)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 340)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .padding(.horizontal, 16)
-                            .padding(.top, 8)
+                        PBImageFrame {
+                            Image(uiImage: previewImage)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(maxHeight: 340)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
 
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 12) {
@@ -144,16 +145,7 @@ struct FiltersView: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "camera.filters")
-                .font(.system(size: 28, weight: .semibold))
-                .foregroundStyle(PBColor.inkFaint)
-            Text("Choose a photo on the Upscale tab first.")
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: "camera.filters", message: "Choose a photo on the Upscale tab first.")
     }
 
     private static func downscaled(_ image: UIImage, maxDimension: CGFloat) -> UIImage {

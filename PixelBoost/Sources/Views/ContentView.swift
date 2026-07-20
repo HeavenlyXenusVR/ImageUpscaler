@@ -64,7 +64,7 @@ struct ContentView: View {
                                 .progressViewStyle(.linear)
                                 .tint(PBColor.accent)
                             Text("Running every model on your photo… \(Int(viewModel.comparisonProgress * 100))%")
-                                .font(.system(size: 13))
+                                .pbFont(.body)
                                 .foregroundStyle(PBColor.inkDim)
                         }
                     } else if viewModel.isUpscaling {
@@ -73,14 +73,14 @@ struct ContentView: View {
                                 .progressViewStyle(.linear)
                                 .tint(PBColor.accent)
                             Text("Upscaling… \(Int(viewModel.progress * 100))%")
-                                .font(.system(size: 13))
+                                .pbFont(.body)
                                 .foregroundStyle(PBColor.inkDim)
                         }
                     } else if viewModel.isRemovingBackground {
                         HStack(spacing: 8) {
                             ProgressView().tint(PBColor.accent)
                             Text("Finding the subject to cut out…")
-                                .font(.system(size: 13))
+                                .pbFont(.body)
                                 .foregroundStyle(PBColor.inkDim)
                         }
                     }
@@ -244,18 +244,20 @@ struct ContentView: View {
     private var imagePreview: some View {
         if let sourceImage = viewModel.sourceImage, let resultImage = viewModel.resultImage {
             VStack(spacing: 8) {
-                ZStack(alignment: .top) {
-                    CompareSliderView(before: sourceImage, after: resultImage)
-                        .frame(height: 300)
-                    HStack {
-                        tag("Before")
-                        Spacer()
-                        tag("\(Int(resultImage.size.width))×\(Int(resultImage.size.height))")
+                PBImageFrame {
+                    ZStack(alignment: .top) {
+                        CompareSliderView(before: sourceImage, after: resultImage)
+                            .frame(height: 300)
+                        HStack {
+                            tag("Before")
+                            Spacer()
+                            tag("\(Int(resultImage.size.width))×\(Int(resultImage.size.height))")
+                        }
+                        .padding(10)
                     }
-                    .padding(10)
                 }
                 Text("Drag to compare")
-                    .font(.system(size: 12))
+                    .pbFont(.caption)
                     .foregroundStyle(PBColor.inkFaint)
             }
         } else if let resultImage = viewModel.resultImage {
@@ -263,35 +265,33 @@ struct ContentView: View {
         } else if let sourceImage = viewModel.sourceImage {
             labeledImage("Before", image: sourceImage)
         } else {
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    Circle()
                         .fill(PBColor.accentGradient)
-                        .frame(width: 52, height: 52)
+                        .frame(width: 56, height: 56)
+                        .shadow(color: PBColor.accent.opacity(0.45), radius: 14, x: 0, y: 6)
                     Image(systemName: "sparkles")
                         .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(.white)
                 }
                 Text("No Photo Yet")
-                    .font(.system(size: 15.5, weight: .bold))
+                    .pbFont(.title)
                     .foregroundStyle(PBColor.ink)
                 Text("Choose a photo — Auto runs every model so you can compare and pick.")
-                    .font(.system(size: 13))
+                    .pbFont(.body)
                     .foregroundStyle(PBColor.inkDim)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 20)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 220)
-            .background(
-                LinearGradient(colors: [PBColor.accent.opacity(0.06), .clear], startPoint: .top, endPoint: .bottom)
-            )
+            .frame(height: 240)
+            .pbGlassSurface(cornerRadius: 24)
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [7, 6]))
                     .foregroundStyle(PBColor.line)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
     }
 
@@ -306,21 +306,22 @@ struct ContentView: View {
 
     private func labeledImage(_ label: String, image: UIImage) -> some View {
         VStack(spacing: 6) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFit()
-                .frame(maxHeight: 300)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .onTapGesture { zoomedImage = image }
+            PBImageFrame {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxHeight: 300)
+            }
+            .onTapGesture { zoomedImage = image }
             Text("\(label) · \(Int(image.size.width))×\(Int(image.size.height))")
-                .font(.system(size: 12))
+                .pbFont(.caption)
                 .foregroundStyle(PBColor.inkFaint)
         }
     }
 
     private var modelMissingBanner: some View {
         Label("No Core ML model bundled — using basic resampling. See Models/README.md.", systemImage: "exclamationmark.triangle")
-            .font(.system(size: 12))
+            .pbFont(.caption)
             .foregroundStyle(PBColor.warn)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)

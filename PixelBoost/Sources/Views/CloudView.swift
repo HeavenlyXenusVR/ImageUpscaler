@@ -74,33 +74,21 @@ struct CloudView: View {
 
     private func segment(_ title: String, isActive: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(title)
+            let text = Text(title)
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(isActive ? .white : PBColor.inkDim)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 7)
-                .background(isActive ? AnyShapeStyle(PBColor.accentGradient) : AnyShapeStyle(.clear), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            if isActive {
+                text.pbAccentGlow(cornerRadius: 9)
+            } else {
+                text.foregroundStyle(PBColor.inkDim)
+            }
         }
         .buttonStyle(.plain)
     }
 
     private func emptyState(systemImage: String, title: String?, message: String) -> some View {
-        VStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 34))
-                .foregroundStyle(PBColor.inkFaint)
-            if let title {
-                Text(title)
-                    .font(.system(size: 15.5, weight: .bold))
-                    .foregroundStyle(PBColor.ink)
-            }
-            Text(message)
-                .font(.system(size: 13))
-                .foregroundStyle(PBColor.inkDim)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        PBEmptyState(icon: systemImage, title: title, message: message)
     }
 
     private func load() async {
@@ -171,11 +159,7 @@ private struct CloudCard: View {
                 .background((expiryIsSoon ? PBColor.warn : PBColor.good).opacity(0.14), in: Capsule())
         }
         .padding(11)
-        .background(PBColor.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(PBColor.line, lineWidth: 1)
-        )
+        .pbGlassSurface(cornerRadius: 18)
     }
 
     private var formattedSize: String {
