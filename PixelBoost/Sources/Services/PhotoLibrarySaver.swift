@@ -36,7 +36,7 @@ enum PhotoLibrarySaver {
     /// surfaced all the way to the confirmation alert (see `ContentView`)
     /// so a failed overwrite is no longer indistinguishable from a working
     /// one, or from the two cases where skipping overwrite is intentional.
-    enum OverwriteFailureReason {
+    enum OverwriteFailureReason: Error {
         /// Not a failure — the user's own "Preserve Original" toggle.
         case preserveOriginalEnabled
         /// Not a failure — nothing to overwrite (e.g. an image shared in
