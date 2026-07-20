@@ -3,15 +3,34 @@ import os
 import Photos
 import UIKit
 
-/// Saves an edited photo back to the library — overwriting the original
-/// asset in place by default (identified by the `PhotosPickerItem.
-/// itemIdentifier` captured when it was picked) rather than adding a
-/// second, duplicate asset next to it, which used to be the only option
-/// and left the user having to manually delete the leftover original
-/// every time. Falls back to adding a new asset if overwriting isn't
-/// possible for any reason — no identifier was captured, the original was
-/// deleted/moved since picking, or the user declines full library access
-/// for the overwrite path — so a save never just fails outright over this.
+/// Saves an edited photo back to the library — replacing the original
+/// asset by default (identified by the `PhotosPickerItem.itemIdentifier`
+/// captured when it was picked) rather than adding a second, duplicate
+/// asset next to it, which used to be the only option and left the user
+/// having to manually delete the leftover original every time. Falls back
+/// to adding a new asset if the replace can't happen for any reason — no
+/// identifier was captured, the original was deleted/moved since picking,
+/// or the user declines full library access — so a save never just fails
+/// outright over this.
+///
+/// "Replace" here means delete-the-original-and-create-a-new-asset in one
+/// atomic `performChanges` transaction, not a true in-place content edit.
+/// The originally-shipped approach (`PHContentEditingOutput` +
+/// `PHAssetChangeRequest.contentEditingOutput`, which *is* the properly
+/// sanctioned "replace this asset's content" API) reliably fails on iOS 27
+/// with `PHPhotosErrorMissingResource`/`PHPhotosErrorInvalidResource`
+/// depending on exactly what's attempted — every documented mitigation
+/// (`canHandleAdjustmentData`, `isNetworkAccessAllowed`, `adjustmentData`)
+/// was tried against real on-device failures and either did nothing or
+/// made it worse; see git history on this file. Apple's own developer
+/// forums have other open, unresolved reports of `performChanges` behaving
+/// differently for third-party apps on iOS 26, so this looks like a
+/// platform regression rather than something fixable here. Delete+recreate
+/// trades true in-place editing (same localIdentifier, preserved album/
+/// favorite membership) for something that actually works: exactly one
+/// photo in the library afterward, not a growing pile of duplicates. iOS
+/// shows its own non-bypassable "Delete Photo?" confirmation for the
+/// delete half of this — expected, not a bug.
 enum PhotoLibrarySaver {
     /// Why a save landed on "add a new asset" instead of overwriting —
     /// surfaced all the way to the confirmation alert (see `ContentView`)
@@ -25,7 +44,6 @@ enum PhotoLibrarySaver {
         case noSourceAssetIdentifier
         case authorizationDenied(PHAuthorizationStatus)
         case assetNotFound
-        case contentEditingInputUnavailable
         case writeFailed(String)
 
         var description: String {
@@ -38,8 +56,6 @@ enum PhotoLibrarySaver {
                 return "Photos access is \(status.rawValue) (not full/limited read-write)"
             case .assetNotFound:
                 return "the original couldn't be found in your library (moved, deleted, or not visible to this app)"
-            case .contentEditingInputUnavailable:
-                return "the original photo's data couldn't be read"
             case .writeFailed(let message):
                 return message
             }
@@ -54,21 +70,26 @@ enum PhotoLibrarySaver {
             case .noSourceAssetIdentifier: return "no_source_asset_identifier"
             case .authorizationDenied(let status): return "authorization_denied_\(status.rawValue)"
             case .assetNotFound: return "asset_not_found"
-            case .contentEditingInputUnavailable: return "content_editing_input_unavailable"
             case .writeFailed: return "write_failed"
             }
         }
     }
 
-    /// What actually happened — the caller can no longer tell overwrite
+    /// What actually happened — the caller can no longer tell replace
     /// success from a silent fallback just from "did this throw or not",
     /// since both `save` outcomes complete without throwing.
     enum SaveOutcome {
-        case overwroteOriginal
+        /// `newAssetIdentifier` is the delete+recreate replacement's own
+        /// identifier, distinct from whatever identifier was passed in to
+        /// `save` — callers that keep re-saving the same photo across
+        /// multiple edits in one session (see `UpscalerViewModel`) need to
+        /// track this instead of the original, now-deleted one, or every
+        /// save after the first would degrade to `.assetNotFound`.
+        case overwroteOriginal(newAssetIdentifier: String)
         case addedNewAsset(reason: OverwriteFailureReason?)
 
         /// For `ActionLoggingService`'s "save" entries — `reason` nil means
-        /// overwrite fully succeeded, not "no data", so it's kept as an
+        /// the replace fully succeeded, not "no data", so it's kept as an
         /// explicit key rather than omitted.
         var logDetail: [String: Any?] {
             switch self {
@@ -82,7 +103,7 @@ enum PhotoLibrarySaver {
 
     private static let logger = Logger(subsystem: "com.pixelboost.ios", category: "PhotoLibrarySaver")
 
-    /// - Parameter forceNewAsset: skips the overwrite path entirely and
+    /// - Parameter forceNewAsset: skips the replace path entirely and
     ///   always adds a new asset — the "Preserve Original" Settings toggle,
     ///   for anyone who wants the pre-overwrite-default behavior back.
     @discardableResult
@@ -90,18 +111,18 @@ enum PhotoLibrarySaver {
         _ image: UIImage, overwriting assetIdentifier: String?, format: ExportFormat, quality: Double,
         forceNewAsset: Bool = false
     ) async throws -> SaveOutcome {
-        let reason: OverwriteFailureReason?
-        if forceNewAsset {
-            reason = .preserveOriginalEnabled
-        } else if let assetIdentifier {
-            reason = await overwriteOriginalAsset(assetIdentifier, with: image, format: format, quality: quality)
-        } else {
-            reason = .noSourceAssetIdentifier
+        if !forceNewAsset, let assetIdentifier {
+            switch await replaceAsset(assetIdentifier, with: image, format: format, quality: quality) {
+            case .success(let newAssetIdentifier):
+                return .overwroteOriginal(newAssetIdentifier: newAssetIdentifier)
+            case .failure(let reason):
+                try await saveAsNewAsset(image, format: format, quality: quality)
+                return .addedNewAsset(reason: reason)
+            }
         }
 
-        guard let reason else { return .overwroteOriginal }
         try await saveAsNewAsset(image, format: format, quality: quality)
-        return .addedNewAsset(reason: reason)
+        return .addedNewAsset(reason: forceNewAsset ? .preserveOriginalEnabled : .noSourceAssetIdentifier)
     }
 
     /// Always adds a new asset rather than overwriting — used both as
@@ -122,85 +143,58 @@ enum PhotoLibrarySaver {
         }
     }
 
-    /// Requests full read/write access (not just `.addOnly` — overwriting
-    /// requires reading/replacing an existing asset, which add-only access
-    /// can't do) and, if granted, replaces `localIdentifier`'s content via
-    /// `PHContentEditingOutput`. Returns `nil` on success, or the specific
-    /// reason it couldn't rather than throwing, so the caller can fall back
-    /// to creating a new asset instead of failing the save outright while
-    /// still reporting why to `SaveOutcome`.
-    private static func overwriteOriginalAsset(
+    /// Requests full read/write access (not just `.addOnly` — deleting the
+    /// original requires it) and, if granted, creates a new asset from
+    /// `image` and deletes `localIdentifier`'s asset in one atomic
+    /// `performChanges` transaction — see this file's top-level doc comment
+    /// for why this replaces the originally-shipped `PHContentEditingOutput`
+    /// approach. Returns the new asset's identifier on success, or the
+    /// specific failure reason (including the user declining iOS's
+    /// mandatory delete confirmation) rather than throwing, so the caller
+    /// can fall back to creating a new asset without deleting anything
+    /// instead of failing the save outright.
+    private static func replaceAsset(
         _ localIdentifier: String, with image: UIImage, format: ExportFormat, quality: Double
-    ) async -> OverwriteFailureReason? {
+    ) async -> Result<String, OverwriteFailureReason> {
         let status = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
         guard status == .authorized || status == .limited else {
-            logger.error("Overwrite skipped: readWrite authorization status is \(status.rawValue, privacy: .public)")
-            return .authorizationDenied(status)
+            logger.error("Replace skipped: readWrite authorization status is \(status.rawValue, privacy: .public)")
+            return .failure(.authorizationDenied(status))
         }
 
         guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil).firstObject else {
-            logger.error("Overwrite skipped: no PHAsset found for identifier (asset moved/deleted, or not visible under Limited Library access)")
-            return .assetNotFound
+            logger.error("Replace skipped: no PHAsset found for identifier (asset moved/deleted, or not visible under Limited Library access)")
+            return .failure(.assetNotFound)
         }
 
-        // canHandleAdjustmentData: true — this is a full content replacement,
-        // not a non-destructive edit on top of the asset's existing
-        // adjustment stack (Markup, Photos' own filters, a prior edit from
-        // another app, ...), so there's nothing about any existing
-        // adjustment data this needs to preserve or be picky about. Passing
-        // `nil` options left this at the framework's default, which for an
-        // asset that already has adjustment history can decline to hand
-        // back usable input at all.
-        //
-        // isNetworkAccessAllowed: true — with iCloud Photos + "Optimize
-        // iPhone Storage" (the default), most photos exist on-device only
-        // as a smaller local rendition, with the actual full-resolution
-        // original in iCloud. Without this, requestContentEditingInput can
-        // still succeed using that local rendition, but the later
-        // performChanges commit — which needs the *original* resource to
-        // replace — then fails with PHPhotosErrorMissingResource (error
-        // 3303) since there's no full original on-device to replace.
-        let options = PHContentEditingInputRequestOptions()
-        options.canHandleAdjustmentData = { _ in true }
-        options.isNetworkAccessAllowed = true
-
-        let input: PHContentEditingInput? = await withCheckedContinuation { continuation in
-            asset.requestContentEditingInput(with: options) { input, info in
-                if input == nil {
-                    logger.error("Overwrite skipped: requestContentEditingInput returned nil, info: \(String(describing: info), privacy: .public)")
-                }
-                continuation.resume(returning: input)
-            }
-        }
-        guard let input else { return .contentEditingInputUnavailable }
         guard let data = encodedData(for: image, format: format, quality: quality) else {
-            return .writeFailed("couldn't encode the edited image")
+            return .failure(.writeFailed("couldn't encode the edited image"))
         }
 
-        let output = PHContentEditingOutput(contentEditingInput: input)
-        // v3.18.7 tried setting adjustmentData here (matching Apple's
-        // canonical sample pattern) to fix PHPhotosErrorMissingResource
-        // (3303) — on-device testing showed it didn't fix anything; it
-        // just swapped every failure to a *different* rejection
-        // (invalidResource, 3302), 100% consistently across both model
-        // choices and both screenshot and camera-photo sources. Reverted:
-        // whatever's actually wrong here isn't what that was addressing.
         do {
-            try data.write(to: output.renderedContentURL, options: .atomic)
+            var newIdentifier: String?
             try await PHPhotoLibrary.shared().performChanges {
-                let request = PHAssetChangeRequest(for: asset)
-                request.contentEditingOutput = output
+                let creationRequest = PHAssetCreationRequest.forAsset()
+                creationRequest.addResource(with: .photo, data: data, options: nil)
+                newIdentifier = creationRequest.placeholderForCreatedAsset?.localIdentifier
+                PHAssetChangeRequest.deleteAssets([asset] as NSArray)
             }
-            return nil
+            guard let newIdentifier else {
+                return .failure(.writeFailed("no identifier for the newly created asset"))
+            }
+            return .success(newIdentifier)
         } catch {
             // The full NSError, not just localizedDescription — PHPhotosError
             // ("PHPhotosErrorDomain error NNNN") carries most of its actual
             // diagnostic detail in userInfo, which localizedDescription
-            // alone drops on the floor.
+            // alone drops on the floor. Also where a user declining iOS's
+            // own delete confirmation surfaces — performChanges is atomic,
+            // so declining rolls back the creation half too, same as any
+            // other failure here.
             let nsError = error as NSError
             let detail = "\(error.localizedDescription) [domain=\(nsError.domain) code=\(nsError.code) userInfo=\(nsError.userInfo)]"
-            logger.error("Overwrite failed: \(detail, privacy: .public)")
-            return .writeFailed(detail)
+            logger.error("Replace failed: \(detail, privacy: .public)")
+            return .failure(.writeFailed(detail))
         }
     }
 

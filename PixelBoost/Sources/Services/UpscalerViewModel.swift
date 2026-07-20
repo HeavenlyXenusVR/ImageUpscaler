@@ -244,6 +244,15 @@ final class UpscalerViewModel: ObservableObject {
                     forceNewAsset: provider.preserveOriginal
                 )
                 lastSaveOutcome = outcome
+                // The replace is delete-original-and-create-new under the
+                // hood (see PhotoLibrarySaver), not a true in-place edit —
+                // sourceAssetIdentifier now points at a deleted asset, so
+                // it needs to track the replacement instead, or a second
+                // save later in this same session (e.g. after another
+                // edit) would degrade to "asset not found" every time.
+                if case .overwroteOriginal(let newAssetIdentifier) = outcome {
+                    sourceAssetIdentifier = newAssetIdentifier
+                }
                 savedConfirmation = true
                 Haptics.success()
                 ActionLoggingService.log("save", detail: outcome.logDetail.merging(

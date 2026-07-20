@@ -83,6 +83,13 @@ final class BatchUpscaleViewModel: ObservableObject {
                     opacity: provider.watermarkOpacity, to: result.image
                 )
                 : result.image
+            // Note: PhotoLibrarySaver's replace path deletes-and-recreates
+            // rather than truly editing in place (see its doc comment), and
+            // iOS shows its own non-bypassable "Delete Photo?" confirmation
+            // per asset for that — with Preserve Original off, a full
+            // 20-photo batch means up to 20 of those prompts in a row.
+            // Nothing batch-specific can avoid that; it's the same
+            // Photos-framework confirmation Save (single-photo) triggers.
             try await PhotoLibrarySaver.save(
                 imageToSave, overwriting: items[index].pickerItem.itemIdentifier,
                 format: provider.exportFormat, quality: provider.exportQuality,
